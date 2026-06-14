@@ -1,0 +1,132 @@
+# Prerequisites
+*.d
+*.dep
+
+# Object files
+*.i
+*.ko
+*.lst
+*.o
+*.o.*
+*.obj
+*.order
+*.slo
+*.symtypes
+
+# Linker Output
+*.axf
+*.exp
+*.lnp
+*.iex
+*.ilk
+*.map
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.a
+*.la
+*.lai
+*.lib
+*.lo
+
+# Shared Libraries
+*.dll
+*.dylib
+*.so
+*.so.*
+
+# Fortran Module Files
+*.mod
+*.smod
+
+# Executables
+*.app
+*.bin
+*.elf
+*.exe
+*.hex
+*.i*86
+*.img
+*.imx
+*.out
+*.x86_64
+
+# Debug Files
+*.dSYM/
+*.dwo
+*.su
+*.idb
+*.pdb
+
+# Kernel Module Compile Results
+*.cmd
+*.mod*
+
+# Generated Config Files
+.config
+.config.*
+
+# Generated Include Files
+include/config
+include/generated
+arch/*/include/generated
+
+# Package Files
+*.bz2
+*.gcno
+*.gz
+*.lz4
+*.lzma
+*.lzo
+*.patch
+*.tar
+*.xz
+
+# Build Directories
+build/
+build-*/
+Build/
+
+# Test Directories
+.cache/
+Testing/
+
+# CMake Files
+CMakeFiles/
+_deps
+cmake_install.cmake
+compile_commands.json
+CMakeCache.txt
+CMakeLists.txt.user
+CMakeScripts
+CMakeUserPresets.json
+CTestTestfile.cmake
+install_manifest.txt
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.swp
+
+# Keil MDK-ARM Files
+DebugConfig/
+Listings/
+Objects/
+*.htm
+*.sct
+*.scvd
+*.uvguix
+*.uvguix.*
+
+# Doxygen generated document files
+docs/doxygen
+
+# macOS shits
+.DS_Store
+
+!.gitignore
+!.gitattributes

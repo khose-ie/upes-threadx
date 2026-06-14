@@ -1,0 +1,64 @@
+* text=auto eol=lf
+
+# Note: 'diff=cpp' requires a custom diff driver named 'cpp' defined in .git/config
+# If you don't use a diff driver, the following file patterns are set to text with LF endings.
+
+# Sources
+*.c     text eol=lf
+*.cc    text eol=lf
+*.c++   text eol=lf
+*.cpi   text eol=lf
+*.cpp   text eol=lf
+*.cxx   text eol=lf
+*.h     text eol=lf
+*.h++   text eol=lf
+*.hh    text eol=lf
+*.hpp   text eol=lf
+*.hxx   text eol=lf
+
+# Object files
+*.lo    binary
+*.ko    binary
+*.o     binary
+*.obj   binary
+*.slo   binary
+
+# Precompiled Headers
+*.gch   binary
+*.pch   binary
+
+# Libraries
+*.a     binary
+*.la    binary
+*.lai   binary
+*.lib   binary
+
+# Shared libraries
+*.dll   binary
+*.dylib binary
+*.so    binary
+
+# Executables
+*.app   binary
+*.bin   binary
+*.elf   binary
+*.exe   binary
+*.hex   binary
+*.img   binary
+*.imx   binary
+*.out   binary
+
+# STM32Cube
+*.mxproject text eol=lf
+*.ioc       text eol=lf
+
+# Common text files (explicit to ensure consistent EOL)
+Doxyfile    text eol=lf
+*.md        text eol=lf
+*.cmake     text eol=lf
+*.sh        text eol=lf
+
+# Export-ignore common generated/docs/IDE folders when creating archives
+docs/doxygen/    export-ignore
+.vscode/         export-ignore
+.idea/           export-ignore

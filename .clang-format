@@ -1,0 +1,82 @@
+Language: Cpp
+BasedOnStyle: llvm
+
+AccessModifierOffset: -4
+
+AlignAfterOpenBracket: Align
+AlignArrayOfStructures: Left
+
+AlignConsecutiveAssignments:
+    Enabled: true
+    AcrossComments: true
+    AcrossEmptyLines: false
+    AlignCompound: true
+
+AlignConsecutiveBitFields: false
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: true
+AlignEscapedNewlines: Right
+AlignOperands: Align
+AlignTrailingComments: true
+
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: true
+
+AlwaysBreakAfterReturnType: None
+AlwaysBreakTemplateDeclarations: MultiLine
+
+BinPackArguments: true
+BinPackParameters: true
+
+BitFieldColonSpacing: None
+
+BreakBeforeBraces: Custom
+BraceWrapping: 
+    AfterCaseLabel: true
+    AfterClass: true
+    AfterControlStatement: true
+    AfterStruct: true
+    AfterEnum: true
+    AfterFunction: true
+    AfterNamespace: true
+    AfterObjCDeclaration: false
+    AfterUnion: true
+    AfterExternBlock: false
+    BeforeCatch: true
+    BeforeElse: true
+    BeforeWhile: false
+
+ColumnLimit: 100
+ContinuationIndentWidth: 4
+Cpp11BracedListStyle: false
+
+IncludeBlocks: Preserve
+
+IndentCaseBlocks: false
+IndentCaseLabels: false
+IndentWidth: 4
+
+NamespaceIndentation: All
+
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: true
+
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+    AfterControlStatements: true
+    AfterFunctionDeclarationName: false
+    AfterFunctionDefinitionName: false
+
+SpacesInCStyleCastParentheses: false
+SpacesInConditionalStatement: false
+SpacesInContainerLiterals: true
+SpacesInParentheses: false
