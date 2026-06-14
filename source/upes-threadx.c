@@ -1,15 +1,13 @@
 /// @file    threadx.c
-/// @brief   SCES OS abstraction layer implementation for ThreadX.
-/// @details This source file provides the implementation of the SCES OS abstraction layer
+/// @brief   UPES OS abstraction layer implementation for ThreadX.
+/// @details This source file provides the implementation of the UPES OS abstraction layer
 ///          using the ThreadX RTOS as the underlying operating system. It includes functions
 ///          for task management, event handling, message queues, memory pools, mutexes,
 ///          semaphores, and timers.
 /// @author  Khose-ie<khose-ie@outlook.com>
 /// @date    2024-06-10
 
-#include <sces-conf.h>
-#include <sces-os.h>
-#include <string.h>
+#include <stdlib.h>
 #include <tx_api.h>
 #include <tx_block_pool.h>
 #include <tx_byte_pool.h>
@@ -19,128 +17,145 @@
 #include <tx_semaphore.h>
 #include <tx_thread.h>
 #include <tx_timer.h>
+#include <upes-os.h>
+#include <upes-threadx.h>
 
-#ifndef SCES_OS_STACK_SIZE
-#define SCES_OS_STACK_SIZE (1024 * 60)
-#endif // SCES_OS_STACK_SIZE
+#ifndef UPES_THREADX_OS_STACK_SIZE
+#define UPES_THREADX_OS_STACK_SIZE (1024 * 60)
+#endif // UPES_THREADX_OS_STACK_SIZE
 
 /// @brief Size of the OS memory pool 1 blocks
 /// @details This constant defines the size (in bytes) of each memory block
-#ifndef SCES_OS_MEM_POOL_BKSZ_1
-#define SCES_OS_MEM_POOL_BKSZ_1 (0)
-#endif // SCES_OS_MEM_POOL_BKSZ_1
+#ifndef UPES_THREADX_OS_MEM_POOL_BKSZ_1
+#define UPES_THREADX_OS_MEM_POOL_BKSZ_1 (0)
+#endif // UPES_THREADX_OS_MEM_POOL_BKSZ_1
 
 /// @brief Count of the OS memory pool 1 blocks
 /// @details This constant defines the number of memory blocks in the OS memory pool 1.
-#ifndef SCES_OS_MEM_POOL_BKCT_1
-#define SCES_OS_MEM_POOL_BKCT_1 (0)
-#endif // SCES_OS_MEM_POOL_BKCT_1
+#ifndef UPES_THREADX_OS_MEM_POOL_BKCT_1
+#define UPES_THREADX_OS_MEM_POOL_BKCT_1 (0)
+#endif // UPES_THREADX_OS_MEM_POOL_BKCT_1
 
 /// @brief Size of the OS memory pool 2 blocks
 /// @details This constant defines the size (in bytes) of each memory block
-#ifndef SCES_OS_MEM_POOL_BKSZ_2
-#define SCES_OS_MEM_POOL_BKSZ_2 (0)
-#endif // SCES_OS_MEM_POOL_BKSZ_2
+#ifndef UPES_THREADX_OS_MEM_POOL_BKSZ_2
+#define UPES_THREADX_OS_MEM_POOL_BKSZ_2 (0)
+#endif // UPES_THREADX_OS_MEM_POOL_BKSZ_2
 
 /// @brief Count of the OS memory pool 2 blocks
 /// @details This constant defines the number of memory blocks in the OS memory pool 2.
-#ifndef SCES_OS_MEM_POOL_BKCT_2
-#define SCES_OS_MEM_POOL_BKCT_2 (0)
-#endif // SCES_OS_MEM_POOL_BKCT_2
+#ifndef UPES_THREADX_OS_MEM_POOL_BKCT_2
+#define UPES_THREADX_OS_MEM_POOL_BKCT_2 (0)
+#endif // UPES_THREADX_OS_MEM_POOL_BKCT_2
 
 /// @brief Size of the OS memory pool 3 blocks
 /// @details This constant defines the size (in bytes) of each memory block
-#ifndef SCES_OS_MEM_POOL_BKSZ_3
-#define SCES_OS_MEM_POOL_BKSZ_3 (0)
-#endif // SCES_OS_MEM_POOL_BKSZ_3
+#ifndef UPES_THREADX_OS_MEM_POOL_BKSZ_3
+#define UPES_THREADX_OS_MEM_POOL_BKSZ_3 (0)
+#endif // UPES_THREADX_OS_MEM_POOL_BKSZ_3
 
 /// @brief Count of the OS memory pool 3 blocks
 /// @details This constant defines the number of memory blocks in the OS memory pool 3.
-#ifndef SCES_OS_MEM_POOL_BKCT_3
-#define SCES_OS_MEM_POOL_BKCT_3 (0)
-#endif // SCES_OS_MEM_POOL_BKCT_3
+#ifndef UPES_THREADX_OS_MEM_POOL_BKCT_3
+#define UPES_THREADX_OS_MEM_POOL_BKCT_3 (0)
+#endif // UPES_THREADX_OS_MEM_POOL_BKCT_3
 
 /// @brief Size of the OS memory pool 4 blocks
 /// @details This constant defines the size (in bytes) of each memory block
-#ifndef SCES_OS_MEM_POOL_BKSZ_4
-#define SCES_OS_MEM_POOL_BKSZ_4 (0)
-#endif // SCES_OS_MEM_POOL_BKSZ_4
+#ifndef UPES_THREADX_OS_MEM_POOL_BKSZ_4
+#define UPES_THREADX_OS_MEM_POOL_BKSZ_4 (0)
+#endif // UPES_THREADX_OS_MEM_POOL_BKSZ_4
 
 /// @brief Count of the OS memory pool 4 blocks
 /// @details This constant defines the number of memory blocks in the OS memory pool 4.
-#ifndef SCES_OS_MEM_POOL_BKCT_4
-#define SCES_OS_MEM_POOL_BKCT_4 (0)
-#endif // SCES_OS_MEM_POOL_BKCT_4
-
-/// @brief Default time slice for tasks
-/// @details This constant defines the default time slice (in ticks) for tasks.
-#define SCES_OS_DEFAULT_TIME_SLICE (4)
-
-/// @brief Current OS state
-/// @details This variable holds the current state of the OS.
-static scesOsState_t os_state = SCES_OS_STATE_INITIALIZING;
+#ifndef UPES_THREADX_OS_MEM_POOL_BKCT_4
+#define UPES_THREADX_OS_MEM_POOL_BKCT_4 (0)
+#endif // UPES_THREADX_OS_MEM_POOL_BKCT_4
 
 /// @brief OS stack definition
 /// @details This variable defines the byte pool used for the OS stack.
-#ifndef SCES_OS_STACK_EX_MEM
-#define EXT               static
-#define SCES_OS_STACK_MEM (os_stack_mem)
-#else // SCES_OS_STACK_EX_MEM
-#define EXT               extern
-#define SCES_OS_STACK_MEM SCES_OS_STACK_EX_MEM
-#endif // SCES_OS_STACK_EX_MEM
+#ifndef UPES_THREADX_OS_STACK_EX_MEM
+#define EXT1         static
+#define OS_STACK_MEM (_os_stack_mem)
+#else // UPES_THREADX_OS_STACK_EX_MEM
+#define EXT1         extern
+#define OS_STACK_MEM UPES_THREADX_OS_STACK_EX_MEM
+#endif // UPES_THREADX_OS_STACK_EX_MEM
 
-/// @brief OS stack
-/// @details OS stack byte pool used for task stack allocations.
-static TX_BYTE_POOL os_stack;
-EXT uint8_t SCES_OS_STACK_MEM[SCES_OS_STACK_SIZE];
+/// @brief OS memory pool definition
+/// @details This section defines the memory used for the OS memory pool.
+#ifndef UPES_THREADX_OS_MEM_POOL_EX_MEM
+#define EXT2            static
+#define OS_MEM_POOL_MEM (_os_mem_pool_mem)
+#else // UPES_THREADX_OS_MEM_POOL_EX_MEM
+#define EXT2            extern
+#define OS_MEM_POOL_MEM UPES_THREADX_OS_MEM_POOL_EX_MEM
+#endif // UPES_THREADX_OS_MEM_POOL_EX_MEM
 
-/// @brief Function pointer for task main function
-static void (*task_main)(void*) = NULL;
+/// @brief Default time slice for tasks
+/// @details This constant defines the default time slice (in ticks) for tasks.
+#define OS_DEFAULT_TIME_SLICE (4)
 
-/// @brief Function pointer for timer callback function
-static void (*timer_callback)(void*) = NULL;
+/// @brief OS stack size
+/// @details This constant defines the size (in bytes) of the OS stack.
+#define OS_STACK_SIZE (UPES_THREADX_OS_STACK_SIZE)
 
-/// @brief Handles for OS memory pool 1
-static scesMemPoolHandle_t os_mem_pool1 = NULL;
+/// @brief OS memory pool indices
+/// @details These constants define the indices for the OS memory pools.
+#define OS_MEM_POOL_1   (0)
+#define OS_MEM_POOL_2   (1)
+#define OS_MEM_POOL_3   (2)
+#define OS_MEM_POOL_4   (3)
+#define OS_MEM_POOL_MAX (4)
 
-/// @brief Handles for OS memory pool 2
-static scesMemPoolHandle_t os_mem_pool2 = NULL;
+/// @brief Sizes of individual OS memory pools
+/// @details These constants define the sizes (in bytes) of each individual OS memory pool.
+#define OS_MEM_POOL_MEM1_SIZE (UPES_THREADX_OS_MEM_POOL_BKSZ_1 * UPES_THREADX_OS_MEM_POOL_BKCT_1)
+#define OS_MEM_POOL_MEM2_SIZE (UPES_THREADX_OS_MEM_POOL_BKSZ_2 * UPES_THREADX_OS_MEM_POOL_BKCT_2)
+#define OS_MEM_POOL_MEM3_SIZE (UPES_THREADX_OS_MEM_POOL_BKSZ_3 * UPES_THREADX_OS_MEM_POOL_BKCT_3)
+#define OS_MEM_POOL_MEM4_SIZE (UPES_THREADX_OS_MEM_POOL_BKSZ_4 * UPES_THREADX_OS_MEM_POOL_BKCT_4)
 
-/// @brief Handles for OS memory pool 3
-static scesMemPoolHandle_t os_mem_pool3 = NULL;
+/// @brief Total size of the OS memory pool
+/// @details This constant defines the total size (in bytes) of the OS memory pool, calculated as
+/// the sum of the sizes of all memory pool blocks.
+#define OS_MEM_POOL_SIZE                                                                           \
+    (OS_MEM_POOL_MEM1_SIZE + OS_MEM_POOL_MEM2_SIZE + OS_MEM_POOL_MEM3_SIZE + OS_MEM_POOL_MEM4_SIZE)
 
-/// @brief Handles for OS memory pool 4
-static scesMemPoolHandle_t os_mem_pool4 = NULL;
-
-/// @brief ThreadX task main wrapper
-/// @details This function serves as the entry point for ThreadX tasks.
-/// @param input Input parameter passed to the task (cast to ULONG)
-static void threadx_task_main(ULONG input)
+/// @brief ThreadX control block
+/// @details This structure holds the state, stack, and stack memory for the ThreadX OS.
+typedef struct
 {
-    if (task_main != NULL)
-    {
-        (*task_main)((void*)input);
-    }
-}
+    osState_t state;
+    TX_BYTE_POOL stack;
+    uint8_t* stack_mem;
+    osMemPoolHandle_t mem_pool[OS_MEM_POOL_MAX];
+    uint8_t* mem_pool_mem;
+} ThreadxControlBlock_t;
 
-/// @brief  ThreadX timer callback wrapper
-/// @details This function serves as the callback for ThreadX timers.
-/// @param input Input parameter passed to the timer callback (cast to ULONG)
-static void threadx_timer_callback(ULONG input)
-{
-    if (timer_callback != NULL)
-    {
-        (*timer_callback)((void*)input);
-    }
-}
+/// @brief OS stack memory
+/// @details This array defines the memory used for the OS stack.
+EXT1 uint8_t OS_STACK_MEM[OS_STACK_SIZE];
+
+/// @brief OS memory pool memory
+/// @details This array defines the memory used for the OS memory pool.
+EXT2 uint8_t OS_MEM_POOL_MEM[OS_MEM_POOL_SIZE];
+
+/// @brief ThreadX control block instance
+/// @details This variable holds the instance of the ThreadX control block.
+static ThreadxControlBlock_t _os = {
+    .state        = OS_STATE_INITIALIZING,
+    .stack        = { 0 },
+    .stack_mem    = OS_STACK_MEM,
+    .mem_pool     = { NULL, NULL, NULL, NULL },
+    .mem_pool_mem = OS_MEM_POOL_MEM
+};
 
 /// @brief Allocate memory from the OS stack byte pool
 /// @details This function allocates a block of memory of the specified size
 ///          from the OS stack byte pool.
 /// @param size Size of the memory block to allocate in bytes
 /// @return Pointer to the allocated memory block, or NULL on failure
-static uint8_t* mem_alloc(uint32_t size)
+static uint8_t* _mem_alloc(uint32_t size)
 {
     uint8_t* mem        = NULL;
     uint32_t alloc_size = size;
@@ -155,7 +170,7 @@ static uint8_t* mem_alloc(uint32_t size)
         alloc_size = TX_BYTE_BLOCK_MIN;
     }
 
-    if (tx_byte_allocate(&os_stack, (VOID**)&mem, alloc_size, TX_NO_WAIT) != TX_SUCCESS)
+    if (tx_byte_allocate(&_os.stack, (VOID**)&mem, alloc_size, TX_NO_WAIT) != TX_SUCCESS)
     {
         return NULL;
     }
@@ -167,7 +182,7 @@ static uint8_t* mem_alloc(uint32_t size)
 /// @details This function frees a previously allocated block of memory
 ///          back to the OS stack byte pool.
 /// @param mem Pointer to the memory block to free
-static void mem_free(uint8_t* mem)
+static void _mem_free(uint8_t* mem)
 {
     if (mem != NULL)
     {
@@ -175,22 +190,22 @@ static void mem_free(uint8_t* mem)
     }
 }
 
-/// @brief Convert ThreadX task state to SCES task state
+/// @brief Convert ThreadX task state to UPES task state
 /// @param threadx_state ThreadX task state
-/// @return Corresponding SCES task state
-static scesTaskState_t convert_threadx_task_state(UINT threadx_state)
+/// @return Corresponding UPES task state
+static osTaskState_t _convert_threadx_task_state(UINT threadx_state)
 {
-    scesTaskState_t converted_state;
+    osTaskState_t converted_state;
 
     switch (threadx_state)
     {
     case TX_READY:
-        converted_state = SCES_TASK_STATE_READY;
+        converted_state = OS_TASK_STATE_READY;
         break;
 
     case TX_COMPLETED:
     case TX_TERMINATED:
-        converted_state = SCES_TASK_STATE_TERMINATED;
+        converted_state = OS_TASK_STATE_TERMINATED;
         break;
 
     case TX_SUSPENDED:
@@ -205,140 +220,140 @@ static scesTaskState_t convert_threadx_task_state(UINT threadx_state)
     case TX_TCP_IP:
     case TX_MUTEX_SUSP:
     case TX_PRIORITY_CHANGE:
-        converted_state = SCES_TASK_STATE_BLOCKED;
+        converted_state = OS_TASK_STATE_BLOCKED;
         break;
 
     default:
-        return SCES_TASK_STATE_UNKNOWN;
+        return OS_TASK_STATE_UNKNOWN;
     }
 
     return converted_state;
 }
 
-/// @brief Convert ThreadX task priority to SCES task priority
+/// @brief Convert ThreadX task priority to UPES task priority
 /// @param threadx_priority ThreadX task priority
-/// @return Corresponding SCES task priority
-static scesTaskPriority_t convert_threadx_task_priority(UINT threadx_priority)
+/// @return Corresponding UPES task priority
+static osTaskPriority_t _convert_threadx_task_priority(UINT threadx_priority)
 {
-    if (threadx_priority > SCES_TASK_PRIORITY_MAX)
+    if (threadx_priority > OS_TASK_PRIORITY_MAX)
     {
-        return SCES_TASK_PRIORITY_NONE;
+        return OS_TASK_PRIORITY_NONE;
     }
 
-    return (scesTaskPriority_t)(SCES_TASK_PRIORITY_MAX - threadx_priority);
+    return (osTaskPriority_t)(OS_TASK_PRIORITY_MAX - threadx_priority);
 }
 
 /// @brief Initialize the OS abstraction layer
 /// @details This function initializes the OS abstraction layer by creating
 ///          the OS stack byte pool and setting the initial OS state.
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_os_initialize(void)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_initialize(void)
 {
-    if (SCES_OS_STACK_SIZE < TX_BYTE_POOL_MIN)
+    if (OS_STACK_SIZE < TX_BYTE_POOL_MIN)
     {
-        os_state = SCES_OS_STATE_ERR_INIT_MEM;
-        return SCES_RET_PARAM_ERR;
+        _os.state = OS_STATE_ERR_INIT_MEM;
+        return RET_VALUE_PARAM_ERR;
     }
 
-#ifndef SCES_OS_EX_STACK_ZONE
+    memset(_os.stack_mem, 0, OS_STACK_SIZE);
 
-    memset(SCES_OS_STACK_MEM, 0, SCES_OS_STACK_SIZE);
-
-#endif // SCES_OS_EX_STACK_ZONE
-
-#ifndef SCES_OS_EX_STACK_POOL
-
-    if (tx_byte_pool_create(&os_stack, "OS Stack", SCES_OS_STACK_MEM, SCES_OS_STACK_SIZE) !=
-        TX_SUCCESS)
+    if (tx_byte_pool_create(&_os.stack, "OS Stack", _os.stack_mem, OS_STACK_SIZE) != TX_SUCCESS)
     {
-        os_state = SCES_OS_STATE_ERR_INIT_MEM;
-        return SCES_RET_OS_MEM_POOL_ERR;
+        _os.state = OS_STATE_ERR_INIT_MEM;
+        return RET_VALUE_OS_MEM_POOL_ERR;
     }
 
-#endif // SCES_OS_EX_STACK_POOL
-
-    os_state = SCES_OS_STATE_RUNNING;
-    return SCES_RET_OK;
+    _os.state = OS_STATE_RUNNING;
+    return RET_VALUE_OK;
 }
 
 /// @brief Initialize the OS memory pool
 /// @details This function initializes the OS memory pool used for dynamic
 ///          memory allocations within the OS abstraction layer.
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_os_initialize_mem_pool(void)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_initialize_mem_pool(void)
 {
-#if SCES_OS_MEM_POOL_BKSZ_1 != 0 && SCES_OS_MEM_POOL_BKCT_1 != 0
+#if OS_MEM_POOL_MEM1_SIZE != 0
 
-    static uint8_t mem_pool_zone1[SCES_OS_MEM_POOL_BKSZ_1 * SCES_OS_MEM_POOL_BKCT_1];
-    memset(mem_pool_zone1, 0, sizeof(mem_pool_zone1));
-    os_mem_pool1 = sces_mem_pool_create_static("OS MemPool 1", mem_pool_zone1,
-                                               SCES_OS_MEM_POOL_BKSZ_1, SCES_OS_MEM_POOL_BKCT_1);
-    if (os_mem_pool1 == NULL)
+    uint8_t* mem_pool_mem1 = _os.mem_pool_mem;
+    memset(mem_pool_mem1, 0, OS_MEM_POOL_MEM1_SIZE);
+
+    _os.mem_pool[OS_MEM_POOL_1] =
+        os_mem_pool_create_static("OS MemPool 1", mem_pool_mem1, UPES_THREADX_OS_MEM_POOL_BKSZ_1,
+                                  UPES_THREADX_OS_MEM_POOL_BKCT_1);
+    if (_os.mem_pool[OS_MEM_POOL_1] == NULL)
     {
-        return SCES_RET_OS_MEM_POOL_ERR;
+        return RET_VALUE_OS_MEM_POOL_ERR;
     }
 
-#endif // SCES_OS_MEM_POOL_BKSZ_1 != 0 && SCES_OS_MEM_POOL_BKCT_1 != 0
+#endif // OS_MEM_POOL_MEM1_SIZE != 0
 
-#if SCES_OS_MEM_POOL_BKSZ_2 != 0 && SCES_OS_MEM_POOL_BKCT_2 != 0
+#if OS_MEM_POOL_MEM2_SIZE != 0
 
-    static uint8_t mem_pool_zone2[SCES_OS_MEM_POOL_BKSZ_2 * SCES_OS_MEM_POOL_BKCT_2];
-    memset(mem_pool_zone2, 0, sizeof(mem_pool_zone2));
-    os_mem_pool2 = sces_mem_pool_create_static("OS MemPool 2", mem_pool_zone2,
-                                               SCES_OS_MEM_POOL_BKSZ_2, SCES_OS_MEM_POOL_BKCT_2);
-    if (os_mem_pool2 == NULL)
+    uint8_t* mem_pool_mem2 = _os.mem_pool_mem + OS_MEM_POOL_MEM1_SIZE;
+    memset(mem_pool_mem2, 0, OS_MEM_POOL_MEM2_SIZE);
+
+    _os.mem_pool[OS_MEM_POOL_2] =
+        os_mem_pool_create_static("OS MemPool 2", mem_pool_mem2, UPES_THREADX_OS_MEM_POOL_BKSZ_2,
+                                  UPES_THREADX_OS_MEM_POOL_BKCT_2);
+    if (_os.mem_pool[OS_MEM_POOL_2] == NULL)
     {
-        return SCES_RET_OS_MEM_POOL_ERR;
+        return RET_VALUE_OS_MEM_POOL_ERR;
     }
 
-#endif // SCES_OS_MEM_POOL_BKSZ_2 != 0 && SCES_OS_MEM_POOL_BKCT_2 != 0
+#endif // OS_MEM_POOL_MEM2_SIZE != 0
 
-#if SCES_OS_MEM_POOL_BKSZ_3 != 0 && SCES_OS_MEM_POOL_BKCT_3 != 0
+#if OS_MEM_POOL_MEM3_SIZE != 0
 
-    static uint8_t mem_pool_zone3[SCES_OS_MEM_POOL_BKSZ_3 * SCES_OS_MEM_POOL_BKCT_3];
-    memset(mem_pool_zone3, 0, sizeof(mem_pool_zone3));
-    os_mem_pool3 = sces_mem_pool_create_static("OS MemPool 3", mem_pool_zone3,
-                                               SCES_OS_MEM_POOL_BKSZ_3, SCES_OS_MEM_POOL_BKCT_3);
-    if (os_mem_pool3 == NULL)
+    uint8_t* mem_pool_mem3 = _os.mem_pool_mem + OS_MEM_POOL_MEM1_SIZE + OS_MEM_POOL_MEM2_SIZE;
+    memset(mem_pool_mem3, 0, OS_MEM_POOL_MEM3_SIZE);
+
+    _os.mem_pool[OS_MEM_POOL_3] =
+        os_mem_pool_create_static("OS MemPool 3", mem_pool_mem3, UPES_THREADX_OS_MEM_POOL_BKSZ_3,
+                                  UPES_THREADX_OS_MEM_POOL_BKCT_3);
+    if (_os.mem_pool[OS_MEM_POOL_3] == NULL)
     {
-        return SCES_RET_OS_MEM_POOL_ERR;
+        return RET_VALUE_OS_MEM_POOL_ERR;
     }
 
-#endif // SCES_OS_MEM_POOL_BKSZ_3 != 0 && SCES_OS_MEM_POOL_BKCT_3 != 0
+#endif // OS_MEM_POOL_MEM3_SIZE != 0
 
-#if SCES_OS_MEM_POOL_BKSZ_4 != 0 && SCES_OS_MEM_POOL_BKCT_4 != 0
+#if OS_MEM_POOL_MEM4_SIZE != 0
 
-    static uint8_t mem_pool_zone4[SCES_OS_MEM_POOL_BKSZ_4 * SCES_OS_MEM_POOL_BKCT_4];
-    memset(mem_pool_zone4, 0, sizeof(mem_pool_zone4));
-    os_mem_pool4 = sces_mem_pool_create_static("OS MemPool 4", mem_pool_zone4,
-                                               SCES_OS_MEM_POOL_BKSZ_4, SCES_OS_MEM_POOL_BKCT_4);
-    if (os_mem_pool4 == NULL)
+    uint8_t* mem_pool_mem4 =
+        _os.mem_pool_mem + OS_MEM_POOL_MEM1_SIZE + OS_MEM_POOL_MEM2_SIZE + OS_MEM_POOL_MEM3_SIZE;
+    memset(mem_pool_mem4, 0, OS_MEM_POOL_MEM4_SIZE);
+
+    _os.mem_pool[OS_MEM_POOL_4] =
+        os_mem_pool_create_static("OS MemPool 4", mem_pool_mem4, UPES_THREADX_OS_MEM_POOL_BKSZ_4,
+                                  UPES_THREADX_OS_MEM_POOL_BKCT_4);
+    if (_os.mem_pool[OS_MEM_POOL_4] == NULL)
     {
-        return SCES_RET_OS_MEM_POOL_ERR;
+        return RET_VALUE_OS_MEM_POOL_ERR;
     }
 
-#endif // SCES_OS_MEM_POOL_BKSZ_4 != 0 && SCES_OS_MEM_POOL_BKCT_4 != 0
+#endif // OS_MEM_POOL_MEM4_SIZE != 0
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Get the current state of the OS
 /// @return Current OS state
-scesOsState_t sces_os_state(void)
+osState_t os_state(void)
 {
-    return os_state;
+    return _os.state;
 }
 
 /// @brief Get the current OS tick count
 /// @return Current OS tick count
-uint32_t sces_os_tick_count(void)
+uint32_t os_tick_count(void)
 {
     return (uint32_t)tx_time_get();
 }
 
 /// @brief Get the current number of tasks
 /// @return Current number of tasks
-uint32_t sces_os_task_count(void)
+uint32_t os_task_count(void)
 {
     uint32_t count        = 0;
     TX_THREAD* thread_ptr = _tx_thread_created_ptr;
@@ -366,24 +381,16 @@ uint32_t sces_os_task_count(void)
 
 /// @brief Get the handle of the current task
 /// @return Handle of the current task
-scesTaskHandle_t sces_os_current_task(void)
+osTaskHandle_t os_current_task(void)
 {
-    return (scesTaskHandle_t)tx_thread_identify();
-}
-
-/// @brief Yield the processor to another ready task
-/// @details This function allows the current task to yield the processor,
-///          allowing other ready tasks to run.
-void sces_os_yield(void)
-{
-    tx_thread_relinquish();
+    return (osTaskHandle_t)tx_thread_identify();
 }
 
 /// @brief Delay the current task for a specified number of ticks
 /// @details This function puts the current task into a blocked state for
 ///          the specified number of system ticks.
 /// @param ticks Number of system ticks to delay
-void sces_os_delay(uint32_t ticks)
+void os_delay(uint32_t ticks)
 {
     if (ticks != 0)
     {
@@ -395,24 +402,32 @@ void sces_os_delay(uint32_t ticks)
 /// @details This function delays the current task until the specified time
 ///          increment has passed since the previous wake time.
 /// @param ticks     Time increment in system ticks
-void sces_os_delay_interval(uint32_t ticks)
+void os_delay_interval(uint32_t ticks)
 {
-    sces_os_delay(ticks - sces_os_tick_count());
+    os_delay(ticks - os_tick_count());
+}
+
+/// @brief Yield the processor to another ready task
+/// @details This function allows the current task to yield the processor,
+///          allowing other ready tasks to run.
+void os_switch_task(void)
+{
+    tx_thread_relinquish();
 }
 
 /// @brief  Exit the current task
 /// @details This function terminates the execution of the current task.
-void sces_os_exit_task(void)
+void os_exit_task(void)
 {
-    sces_task_delete(sces_os_current_task());
+    os_task_delete(os_current_task());
     while (1);
 }
 
 /// @brief  Exit the current task created with static stack allocation
 /// @details This function terminates the execution of the current task created with static stack
-void sces_os_exit_task_static(void)
+void os_exit_task_static(void)
 {
-    sces_task_delete_static(sces_os_current_task());
+    os_task_delete_static(os_current_task());
 }
 
 /// @brief  Allocate memory from the OS memory pool
@@ -421,53 +436,53 @@ void sces_os_exit_task_static(void)
 ///.         The os implementation will choice the best fit memory block from the pool.
 /// @param size Size of memory want to allocate in bytes
 /// @return Pointer to the allocated memory block, or NULL on failure
-void* sces_os_malloc(uint32_t size)
+void* os_malloc(uint32_t size)
 {
-    void* ptr = NULL;
+    void* mem = NULL;
 
-    if ((os_mem_pool1 != NULL) && (size <= SCES_OS_MEM_POOL_BKSZ_1))
+    if ((_os.mem_pool[OS_MEM_POOL_1] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_1))
     {
-        ptr = sces_mem_pool_alloc(os_mem_pool1, size);
+        mem = os_mem_pool_alloc(_os.mem_pool[OS_MEM_POOL_1], size);
     }
-    else if ((os_mem_pool2 != NULL) && (size <= SCES_OS_MEM_POOL_BKSZ_2))
+    else if ((_os.mem_pool[OS_MEM_POOL_2] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_2))
     {
-        ptr = sces_mem_pool_alloc(os_mem_pool2, size);
+        mem = os_mem_pool_alloc(_os.mem_pool[OS_MEM_POOL_2], size);
     }
-    else if ((os_mem_pool3 != NULL) && (size <= SCES_OS_MEM_POOL_BKSZ_3))
+    else if ((_os.mem_pool[OS_MEM_POOL_3] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_3))
     {
-        ptr = sces_mem_pool_alloc(os_mem_pool3, size);
+        mem = os_mem_pool_alloc(_os.mem_pool[OS_MEM_POOL_3], size);
     }
-    else if ((os_mem_pool4 != NULL) && (size <= SCES_OS_MEM_POOL_BKSZ_4))
+    else if ((_os.mem_pool[OS_MEM_POOL_4] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_4))
     {
-        ptr = sces_mem_pool_alloc(os_mem_pool4, size);
+        mem = os_mem_pool_alloc(_os.mem_pool[OS_MEM_POOL_4], size);
     }
 
-    return ptr;
+    return mem;
 }
 
 /// @brief  Free memory back to the OS memory pool
 /// @details This function frees a previously allocated block of memory back to the OS memory pool.
-/// @param ptr Pointer to the memory block to free
+/// @param mem Pointer to the memory block to free
 /// @param size Size of the memory to free in bytes
-void sces_os_free(void* ptr, uint32_t size)
+void os_free(void* mem, uint32_t size)
 {
-    if (ptr != NULL)
+    if (mem != NULL)
     {
-        if ((os_mem_pool1 != NULL) && (size <= SCES_OS_MEM_POOL_BKSZ_1))
+        if ((_os.mem_pool[OS_MEM_POOL_1] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_1))
         {
-            sces_mem_pool_free(os_mem_pool1, ptr);
+            os_mem_pool_free(_os.mem_pool[OS_MEM_POOL_1], mem);
         }
-        else if ((os_mem_pool2 != NULL) && (size <= SCES_OS_MEM_POOL_BKSZ_2))
+        else if ((_os.mem_pool[OS_MEM_POOL_2] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_2))
         {
-            sces_mem_pool_free(os_mem_pool2, ptr);
+            os_mem_pool_free(_os.mem_pool[OS_MEM_POOL_2], mem);
         }
-        else if ((os_mem_pool3 != NULL) && (size <= SCES_OS_MEM_POOL_BKSZ_3))
+        else if ((_os.mem_pool[OS_MEM_POOL_3] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_3))
         {
-            sces_mem_pool_free(os_mem_pool3, ptr);
+            os_mem_pool_free(_os.mem_pool[OS_MEM_POOL_3], mem);
         }
-        else if ((os_mem_pool4 != NULL) && (size <= SCES_OS_MEM_POOL_BKSZ_4))
+        else if ((_os.mem_pool[OS_MEM_POOL_4] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_4))
         {
-            sces_mem_pool_free(os_mem_pool4, ptr);
+            os_mem_pool_free(_os.mem_pool[OS_MEM_POOL_4], mem);
         }
     }
 }
@@ -476,9 +491,9 @@ void sces_os_free(void* ptr, uint32_t size)
 /// @details This function creates a new event object with the specified name.
 /// @param name Name of the event object
 /// @return Handle to the created event object or NULL on failure
-scesEventHandle_t sces_event_create(const char* name)
+osEventHandle_t os_event_create(const char* name)
 {
-    TX_EVENT_FLAGS_GROUP* event = (TX_EVENT_FLAGS_GROUP*)mem_alloc(sizeof(TX_EVENT_FLAGS_GROUP));
+    TX_EVENT_FLAGS_GROUP* event = (TX_EVENT_FLAGS_GROUP*)_mem_alloc(sizeof(TX_EVENT_FLAGS_GROUP));
 
     if (event == NULL)
     {
@@ -487,22 +502,22 @@ scesEventHandle_t sces_event_create(const char* name)
 
     if (tx_event_flags_create(event, (CHAR*)name) != TX_SUCCESS)
     {
-        mem_free((uint8_t*)event);
+        _mem_free((uint8_t*)event);
         return NULL;
     }
 
-    return (scesEventHandle_t)event;
+    return (osEventHandle_t)event;
 }
 
 /// @brief  Delete an event object
 /// @details This function deletes the specified event object and frees its resources.
 /// @param event Handle to the event object to be deleted
-void sces_event_delete(scesEventHandle_t event)
+void os_event_delete(osEventHandle_t event)
 {
     if (event != NULL)
     {
         tx_event_flags_delete((TX_EVENT_FLAGS_GROUP*)event);
-        mem_free((uint8_t*)event);
+        _mem_free((uint8_t*)event);
     }
 }
 
@@ -510,7 +525,7 @@ void sces_event_delete(scesEventHandle_t event)
 /// @details This function retrieves the name of the specified event object.
 /// @param event Handle to the event object
 /// @return Pointer to the event object's name string
-const char* sces_event_name(scesEventHandle_t event)
+const char* os_event_name(osEventHandle_t event)
 {
     char* name = NULL;
 
@@ -532,7 +547,7 @@ const char* sces_event_name(scesEventHandle_t event)
 /// @details This function retrieves the current state (flags) of the specified event object.
 /// @param event Handle to the event object
 /// @return Current state (flags) of the event object
-uint32_t sces_event_state(scesEventHandle_t event)
+uint32_t os_event_state(osEventHandle_t event)
 {
     uint32_t events_state = 0;
 
@@ -559,77 +574,77 @@ uint32_t sces_event_state(scesEventHandle_t event)
 /// @details This function puts the specified flags in the event object.
 /// @param event Handle to the event object
 /// @param flags Flags to be putted
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_event_put(scesEventHandle_t event, uint32_t flags)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_event_put(osEventHandle_t event, uint32_t flags)
 {
     uint32_t events_state;
 
     if (event == NULL)
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_EVENT_FLAGS_GROUP*)event)->tx_event_flags_group_id != TX_EVENT_FLAGS_ID)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (tx_event_flags_set((TX_EVENT_FLAGS_GROUP*)event, (ULONG)flags, TX_OR) != TX_SUCCESS)
     {
-        return SCES_RET_OS_EVENT_ERR;
+        return RET_VALUE_OS_EVENT_ERR;
     }
 
     if (tx_event_flags_info_get((TX_EVENT_FLAGS_GROUP*)event, NULL, &events_state, NULL, NULL,
                                 NULL) != TX_SUCCESS)
     {
-        return SCES_RET_OS_EVENT_ERR;
+        return RET_VALUE_OS_EVENT_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Wait for event flags
 /// @details This function waits for the specified flags to be set in the event object.
 /// @param event        Handle to the event object
 /// @param events_value Flags to wait for
-/// @param timeout      Timeout in milliseconds to wait (0 for no wait, SCES_OS_WAIT_FOREVER for
+/// @param timeout      Timeout in milliseconds to wait (0 for no wait, OS_WAIT_FOREVER for
 /// infinite wait)
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_event_wait(scesEventHandle_t event, uint32_t events_value, uint32_t timeout)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_event_wait(osEventHandle_t event, uint32_t events_value, uint32_t timeout)
 {
     ULONG event_value;
 
-    if ((event == NULL) || (events_value == SCES_EVENT_NONE))
+    if ((event == NULL) || (events_value == OS_EVENT_NONE))
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_EVENT_FLAGS_GROUP*)event)->tx_event_flags_group_id != TX_EVENT_FLAGS_ID)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (tx_event_flags_get((TX_EVENT_FLAGS_GROUP*)event, (ULONG)events_value, TX_OR, &event_value,
                            (ULONG)timeout) != TX_SUCCESS)
     {
-        return SCES_RET_OS_EVENT_ERR;
+        return RET_VALUE_OS_EVENT_ERR;
     }
 
-    if ((event_value & events_value) == SCES_EVENT_NONE)
+    if ((event_value & events_value) == OS_EVENT_NONE)
     {
-        return SCES_RET_OS_EVENT_ERR;
+        return RET_VALUE_OS_EVENT_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Clear event flags
 /// @details This function clears the specified flags in the event object.
 /// @param events_value Handle to the event object
 /// @param flags Flags to be cleared
-void sces_event_clear(scesEventHandle_t event, uint32_t events_value)
+void os_event_clear(osEventHandle_t event, uint32_t events_value)
 {
-    if ((event != NULL) && (events_value != SCES_EVENT_NONE) &&
+    if ((event != NULL) && (events_value != OS_EVENT_NONE) &&
         (((TX_EVENT_FLAGS_GROUP*)event)->tx_event_flags_group_id == TX_EVENT_FLAGS_ID))
     {
         tx_event_flags_set((TX_EVENT_FLAGS_GROUP*)event, (ULONG)events_value, TX_AND);
@@ -642,33 +657,33 @@ void sces_event_clear(scesEventHandle_t event, uint32_t events_value)
 /// @param event             Handle to the event object
 /// @param events_value      Flags to wait for
 /// @param out_events_value  Pointer to store the flags that caused the wakeup
-/// @param timeout           Timeout in milliseconds to wait (0 for no wait, SCES_OS_WAIT_FOREVER
+/// @param timeout           Timeout in milliseconds to wait (0 for no wait, OS_WAIT_FOREVER
 /// for infinite wait)
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_event_wait_and_clear(scesEventHandle_t event, uint32_t events_value,
-                                       uint32_t* out_events_value, uint32_t timeout)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_event_wait_and_clear(osEventHandle_t event, uint32_t events_value,
+                                   uint32_t* out_events_value, uint32_t timeout)
 {
     ULONG event_value;
 
-    if ((event == NULL) || (events_value == SCES_EVENT_NONE))
+    if ((event == NULL) || (events_value == OS_EVENT_NONE))
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_EVENT_FLAGS_GROUP*)event)->tx_event_flags_group_id != TX_EVENT_FLAGS_ID)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (tx_event_flags_get((TX_EVENT_FLAGS_GROUP*)event, (ULONG)events_value, TX_OR, &event_value,
                            (ULONG)timeout) != TX_SUCCESS)
     {
-        return SCES_RET_OS_EVENT_ERR;
+        return RET_VALUE_OS_EVENT_ERR;
     }
 
-    if ((event_value & events_value) == SCES_EVENT_NONE)
+    if ((event_value & events_value) == OS_EVENT_NONE)
     {
-        return SCES_RET_OS_EVENT_ERR;
+        return RET_VALUE_OS_EVENT_ERR;
     }
 
     if (out_events_value != NULL)
@@ -676,9 +691,9 @@ scesRetVal_t sces_event_wait_and_clear(scesEventHandle_t event, uint32_t events_
         *out_events_value = (uint32_t)(event_value & events_value);
     }
 
-    sces_event_clear(event, *out_events_value);
+    os_event_clear(event, *out_events_value);
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Create a new message queue
@@ -687,10 +702,10 @@ scesRetVal_t sces_event_wait_and_clear(scesEventHandle_t event, uint32_t events_
 /// @param message_size  Size of each message in bytes
 /// @param message_count Maximum number of messages the queue can hold
 /// @return Handle to the created message queue or NULL on failure
-scesMessageQueueHandle_t sces_mq_create(const char* name, uint32_t message_size,
-                                        uint32_t message_count)
+osMessageQueueHandle_t os_message_queue_create(const char* name, uint32_t message_size,
+                                               uint32_t message_count)
 {
-    TX_QUEUE* queue               = (TX_QUEUE*)mem_alloc(sizeof(TX_QUEUE));
+    TX_QUEUE* queue               = (TX_QUEUE*)_mem_alloc(sizeof(TX_QUEUE));
     uint32_t aligned_message_size = message_size % sizeof(ULONG) == 0
                                         ? message_size
                                         : ((message_size / sizeof(ULONG)) + 1) * sizeof(ULONG);
@@ -700,23 +715,23 @@ scesMessageQueueHandle_t sces_mq_create(const char* name, uint32_t message_size,
         return NULL;
     }
 
-    VOID* queue_start = (VOID*)mem_alloc(aligned_message_size * message_count);
+    VOID* queue_start = (VOID*)_mem_alloc(aligned_message_size * message_count);
 
     if (queue_start == NULL)
     {
-        mem_free((uint8_t*)queue);
+        _mem_free((uint8_t*)queue);
         return NULL;
     }
 
     if (tx_queue_create(queue, (CHAR*)name, aligned_message_size / sizeof(ULONG), queue_start,
                         message_count) != TX_SUCCESS)
     {
-        mem_free((uint8_t*)queue);
-        mem_free((uint8_t*)queue_start);
+        _mem_free((uint8_t*)queue);
+        _mem_free((uint8_t*)queue_start);
         return NULL;
     }
 
-    return (scesMessageQueueHandle_t)queue;
+    return (osMessageQueueHandle_t)queue;
 }
 
 /// @brief  Create a new message queue with static buffer
@@ -727,10 +742,10 @@ scesMessageQueueHandle_t sces_mq_create(const char* name, uint32_t message_size,
 /// @param message_size   Size of each message in bytes
 /// @param message_count  Maximum number of messages the queue can hold
 /// @return Handle to the created message queue
-scesMessageQueueHandle_t sces_mq_create_static(const char* name, uint8_t* message_buffer,
-                                               uint32_t message_size, uint32_t message_count)
+osMessageQueueHandle_t os_message_queue_create_static(const char* name, uint8_t* message_buffer,
+                                                      uint32_t message_size, uint32_t message_count)
 {
-    TX_QUEUE* queue = (TX_QUEUE*)mem_alloc(sizeof(TX_QUEUE));
+    TX_QUEUE* queue = (TX_QUEUE*)_mem_alloc(sizeof(TX_QUEUE));
 
     if (queue == NULL)
     {
@@ -740,42 +755,42 @@ scesMessageQueueHandle_t sces_mq_create_static(const char* name, uint8_t* messag
     if (tx_queue_create(queue, (CHAR*)name, message_size, (VOID*)message_buffer, message_count) !=
         TX_SUCCESS)
     {
-        mem_free((uint8_t*)queue);
+        _mem_free((uint8_t*)queue);
         return NULL;
     }
 
-    return (scesMessageQueueHandle_t)queue;
+    return (osMessageQueueHandle_t)queue;
 }
 
 /// @brief  Delete a message queue
 /// @details This function deletes the specified message queue and frees its resources.
 /// @param queue Handle to the message queue to be deleted
-void sces_mq_delete(scesMessageQueueHandle_t queue)
+void os_message_queue_delete(osMessageQueueHandle_t queue)
 {
     if (queue != NULL)
     {
         tx_queue_delete((TX_QUEUE*)queue);
-        mem_free((uint8_t*)queue);
-        mem_free((uint8_t*)((TX_QUEUE*)queue)->tx_queue_start);
+        _mem_free((uint8_t*)queue);
+        _mem_free((uint8_t*)((TX_QUEUE*)queue)->tx_queue_start);
     }
 }
 
 /// @brief  Delete a message queue created with static buffer
 /// @details This function deletes the specified message queue created with a static buffer.
 /// @param queue Handle to the message queue to be deleted
-void sces_mq_delete_static(scesMessageQueueHandle_t queue)
+void os_message_queue_delete_static(osMessageQueueHandle_t queue)
 {
     if (queue != NULL)
     {
         tx_queue_delete((TX_QUEUE*)queue);
-        mem_free((uint8_t*)queue);
+        _mem_free((uint8_t*)queue);
     }
 }
 
 /// @brief  Get the name of a message queue
 /// @param queue Handle to the message queue
 /// @return Pointer to the message queue's name string
-const char* sces_mq_name(scesMessageQueueHandle_t queue)
+const char* os_message_queue_name(osMessageQueueHandle_t queue)
 {
     char* name = NULL;
 
@@ -801,7 +816,7 @@ const char* sces_mq_name(scesMessageQueueHandle_t queue)
 /// @brief  Get the size of a message in the queue
 /// @param queue Handle to the message queue
 /// @return Size of each message in bytes
-uint32_t sces_mq_message_size(scesMessageQueueHandle_t queue)
+uint32_t os_message_queue_message_size(osMessageQueueHandle_t queue)
 {
     if (queue == NULL)
     {
@@ -819,7 +834,7 @@ uint32_t sces_mq_message_size(scesMessageQueueHandle_t queue)
 /// @brief  Get the number of messages currently in the queue
 /// @param queue Handle to the message queue
 /// @return Number of messages currently in the queue
-uint32_t sces_mq_message_count(scesMessageQueueHandle_t queue)
+uint32_t os_message_queue_message_count(osMessageQueueHandle_t queue)
 {
     ULONG queued_messages_number = 0U;
 
@@ -845,7 +860,7 @@ uint32_t sces_mq_message_count(scesMessageQueueHandle_t queue)
 /// @brief  Get the maximum number of messages the queue can hold
 /// @param queue Handle to the message queue
 /// @return Maximum number of messages the queue can hold
-uint32_t sces_mq_max_message_count(scesMessageQueueHandle_t queue)
+uint32_t os_message_queue_max_message_count(osMessageQueueHandle_t queue)
 {
     if (queue == NULL)
     {
@@ -866,25 +881,26 @@ uint32_t sces_mq_max_message_count(scesMessageQueueHandle_t queue)
 /// @param message  Pointer to the buffer to store the received message
 /// @param timeout  Timeout in milliseconds to wait for a message (0 for no wait, UINT32_MAX for
 /// infinite wait)
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_mq_send(scesMessageQueueHandle_t queue, const void* message, uint32_t timeout)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_message_queue_send(osMessageQueueHandle_t queue, const void* message,
+                                 uint32_t timeout)
 {
     if ((queue == NULL) || (message == NULL))
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_QUEUE*)queue)->tx_queue_id != TX_QUEUE_ID)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (tx_queue_send((TX_QUEUE*)queue, (VOID*)message, (ULONG)timeout) != TX_SUCCESS)
     {
-        return SCES_RET_OS_MQ_ERR;
+        return RET_VALUE_OS_MQ_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Receive a message from the queue
@@ -892,32 +908,32 @@ scesRetVal_t sces_mq_send(scesMessageQueueHandle_t queue, const void* message, u
 /// @param queue    Handle to the message queue
 /// @param message  Pointer to the buffer to store the received message
 /// @param timeout  Timeout in milliseconds to wait for a message (0 for no wait,
-/// SCES_OS_WAIT_FOREVER for infinite wait)
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_mq_receive(scesMessageQueueHandle_t queue, void* message, uint32_t timeout)
+/// OS_WAIT_FOREVER for infinite wait)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_message_queue_receive(osMessageQueueHandle_t queue, void* message, uint32_t timeout)
 {
     if ((queue == NULL) || (message == NULL))
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_QUEUE*)queue)->tx_queue_id != TX_QUEUE_ID)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (tx_queue_receive((TX_QUEUE*)queue, message, (ULONG)timeout) != TX_SUCCESS)
     {
-        return SCES_RET_OS_MQ_ERR;
+        return RET_VALUE_OS_MQ_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Clear all messages from the queue
 /// @details This function clears all messages currently in the specified message queue.
 /// @param queue Handle to the message queue
-void sces_mq_clear(scesMessageQueueHandle_t queue)
+void os_message_queue_clear(osMessageQueueHandle_t queue)
 {
     if ((queue != NULL) && (((TX_QUEUE*)queue)->tx_queue_id == TX_QUEUE_ID))
     {
@@ -931,37 +947,36 @@ void sces_mq_clear(scesMessageQueueHandle_t queue)
 /// @param block_size  Size of each memory block in bytes
 /// @param block_count Number of memory blocks in the pool
 /// @return Handle to the created memory pool or NULL on failure
-scesMemPoolHandle_t sces_mem_pool_create(const char* name, uint32_t block_size,
-                                         uint32_t block_count)
+osMemPoolHandle_t os_mem_pool_create(const char* name, uint32_t block_size, uint32_t block_count)
 {
     uint32_t aligned_block_size = block_size % sizeof(ULONG) == 0
                                       ? block_size
                                       : ((block_size / sizeof(ULONG)) + 1) * sizeof(ULONG);
 
-    TX_BLOCK_POOL* pool = (TX_BLOCK_POOL*)mem_alloc(sizeof(TX_BLOCK_POOL));
+    TX_BLOCK_POOL* pool = (TX_BLOCK_POOL*)_mem_alloc(sizeof(TX_BLOCK_POOL));
 
     if (pool == NULL)
     {
         return NULL;
     }
 
-    VOID* pool_zone = mem_alloc(aligned_block_size * block_count);
+    VOID* pool_zone = _mem_alloc(aligned_block_size * block_count);
 
     if (pool_zone == NULL)
     {
-        mem_free((uint8_t*)pool);
+        _mem_free((uint8_t*)pool);
         return NULL;
     }
 
     if (tx_block_pool_create(pool, (CHAR*)name, aligned_block_size, pool_zone,
                              aligned_block_size * block_count) != TX_SUCCESS)
     {
-        mem_free((uint8_t*)pool);
-        mem_free((uint8_t*)pool_zone);
+        _mem_free((uint8_t*)pool);
+        _mem_free((uint8_t*)pool_zone);
         return NULL;
     }
 
-    return (scesMemPoolHandle_t)pool;
+    return (osMemPoolHandle_t)pool;
 }
 
 /// @brief  Create a new memory pool with static buffer
@@ -972,8 +987,8 @@ scesMemPoolHandle_t sces_mem_pool_create(const char* name, uint32_t block_size,
 /// @param block_size  Size of each memory block in bytes
 /// @param block_count Number of memory blocks in the pool
 /// @return Handle to the created memory pool or NULL on failure
-scesMemPoolHandle_t sces_mem_pool_create_static(const char* name, uint8_t* pool_buffer,
-                                                uint32_t block_size, uint32_t block_count)
+osMemPoolHandle_t os_mem_pool_create_static(const char* name, uint8_t* pool_buffer,
+                                            uint32_t block_size, uint32_t block_count)
 {
     if ((pool_buffer == NULL) || (block_size == 0) || (block_size % sizeof(ULONG) != 0) ||
         (block_count == 0))
@@ -981,7 +996,7 @@ scesMemPoolHandle_t sces_mem_pool_create_static(const char* name, uint8_t* pool_
         return NULL;
     }
 
-    TX_BLOCK_POOL* pool = (TX_BLOCK_POOL*)mem_alloc(sizeof(TX_BLOCK_POOL));
+    TX_BLOCK_POOL* pool = (TX_BLOCK_POOL*)_mem_alloc(sizeof(TX_BLOCK_POOL));
 
     if (pool == NULL)
     {
@@ -991,44 +1006,44 @@ scesMemPoolHandle_t sces_mem_pool_create_static(const char* name, uint8_t* pool_
     if (tx_block_pool_create(pool, (CHAR*)name, block_size, (VOID*)pool_buffer,
                              block_size * block_count) != TX_SUCCESS)
     {
-        mem_free((uint8_t*)pool);
+        _mem_free((uint8_t*)pool);
         return NULL;
     }
 
-    return (scesMemPoolHandle_t)pool;
+    return (osMemPoolHandle_t)pool;
 }
 
 /// @brief  Delete a memory pool
 /// @details This function deletes the specified memory pool and frees its resources.
 /// @param pool Handle to the memory pool to be deleted
-void sces_mem_pool_delete(scesMemPoolHandle_t pool)
+void os_mem_pool_delete(osMemPoolHandle_t pool)
 {
     VOID* pool_zone = ((TX_BLOCK_POOL*)pool)->tx_block_pool_start;
 
     if ((pool != NULL) && (((TX_BLOCK_POOL*)pool)->tx_block_pool_id != TX_BLOCK_POOL_ID))
     {
         tx_block_pool_delete((TX_BLOCK_POOL*)pool);
-        mem_free((uint8_t*)pool);
-        mem_free((uint8_t*)pool_zone);
+        _mem_free((uint8_t*)pool);
+        _mem_free((uint8_t*)pool_zone);
     }
 }
 
 /// @brief  Delete a memory pool created with static buffer
 /// @details This function deletes the specified memory pool created with a static buffer.
 /// @param pool Handle to the memory pool to be deleted
-void sces_mem_pool_delete_static(scesMemPoolHandle_t pool)
+void os_mem_pool_delete_static(osMemPoolHandle_t pool)
 {
     if ((pool != NULL) && (((TX_BLOCK_POOL*)pool)->tx_block_pool_id != TX_BLOCK_POOL_ID))
     {
         tx_block_pool_delete((TX_BLOCK_POOL*)pool);
-        mem_free((uint8_t*)pool);
+        _mem_free((uint8_t*)pool);
     }
 }
 
 /// @brief  Get the name of a memory pool
 /// @param pool Handle to the memory pool
 /// @return Pointer to the memory pool's name string
-const char* sces_mem_pool_name(scesMemPoolHandle_t pool)
+const char* os_mem_pool_name(osMemPoolHandle_t pool)
 {
     char* name = NULL;
 
@@ -1054,7 +1069,7 @@ const char* sces_mem_pool_name(scesMemPoolHandle_t pool)
 /// @brief  Get the size of each memory block in the pool
 /// @param pool Handle to the memory pool
 /// @return Size of each memory block in bytes
-uint32_t sces_mem_pool_block_size(scesMemPoolHandle_t pool)
+uint32_t os_mem_pool_block_size(osMemPoolHandle_t pool)
 {
     if (pool == NULL)
     {
@@ -1072,7 +1087,7 @@ uint32_t sces_mem_pool_block_size(scesMemPoolHandle_t pool)
 /// @brief  Get the number of used memory blocks in the pool
 /// @param pool Handle to the memory pool
 /// @return Number of memory blocks in the pool
-uint32_t sces_mem_pool_block_count(scesMemPoolHandle_t pool)
+uint32_t os_mem_pool_block_count(osMemPoolHandle_t pool)
 {
     ULONG available_blocks = 0U;
     ULONG total_blocks     = 0U;
@@ -1099,7 +1114,7 @@ uint32_t sces_mem_pool_block_count(scesMemPoolHandle_t pool)
 /// @brief  Get the maximum number of memory blocks in the pool
 /// @param pool Handle to the memory pool
 /// @return Maximum number of memory blocks in the pool
-uint32_t sces_mem_pool_max_block_count(scesMemPoolHandle_t pool)
+uint32_t os_mem_pool_max_block_count(osMemPoolHandle_t pool)
 {
     ULONG total_blocks = 0U;
 
@@ -1126,9 +1141,9 @@ uint32_t sces_mem_pool_max_block_count(scesMemPoolHandle_t pool)
 /// @details This function allocates a memory block from the specified memory pool.
 /// @param pool    Handle to the memory pool
 /// @param timeout Timeout in milliseconds to wait for a memory block (0 for no wait,
-/// SCES_OS_WAIT_FOREVER for infinite wait)
+/// OS_WAIT_FOREVER for infinite wait)
 /// @return Pointer to the allocated memory block, or NULL on failure
-void* sces_mem_pool_alloc(scesMemPoolHandle_t pool, uint32_t timeout)
+void* os_mem_pool_alloc(osMemPoolHandle_t pool, uint32_t timeout)
 {
     VOID* block = NULL;
 
@@ -1155,7 +1170,7 @@ void* sces_mem_pool_alloc(scesMemPoolHandle_t pool, uint32_t timeout)
 /// pool.
 /// @param pool  Handle to the memory pool
 /// @param block Pointer to the memory block to be freed
-void sces_mem_pool_free(scesMemPoolHandle_t pool, void* block)
+void os_mem_pool_free(osMemPoolHandle_t pool, void* block)
 {
     if ((pool != NULL) && (block != NULL) &&
         (((TX_BLOCK_POOL*)pool)->tx_block_pool_id == TX_BLOCK_POOL_ID))
@@ -1168,9 +1183,9 @@ void sces_mem_pool_free(scesMemPoolHandle_t pool, void* block)
 /// @details This function creates a new mutex with the specified name.
 /// @param name Name of the mutex
 /// @return Handle to the created mutex or NULL on failure
-scesMutexHandle_t sces_mutex_create(const char* name)
+osMutexHandle_t os_mutex_create(const char* name)
 {
-    TX_MUTEX* mutex = (TX_MUTEX*)mem_alloc(sizeof(TX_MUTEX));
+    TX_MUTEX* mutex = (TX_MUTEX*)_mem_alloc(sizeof(TX_MUTEX));
 
     if (mutex == NULL)
     {
@@ -1179,29 +1194,29 @@ scesMutexHandle_t sces_mutex_create(const char* name)
 
     if (tx_mutex_create(mutex, (CHAR*)name, TX_INHERIT) != TX_SUCCESS)
     {
-        mem_free((uint8_t*)mutex);
+        _mem_free((uint8_t*)mutex);
         return NULL;
     }
 
-    return (scesMutexHandle_t)mutex;
+    return (osMutexHandle_t)mutex;
 }
 
 /// @brief  Delete a mutex
 /// @details This function deletes the specified mutex and frees its resources.
 /// @param mutex Handle to the mutex to be deleted
-void sces_mutex_delete(scesMutexHandle_t mutex)
+void os_mutex_delete(osMutexHandle_t mutex)
 {
     if (mutex != NULL)
     {
         tx_mutex_delete((TX_MUTEX*)mutex);
-        mem_free((uint8_t*)mutex);
+        _mem_free((uint8_t*)mutex);
     }
 }
 
 /// @brief  Get the name of a mutex
 /// @param mutex Handle to the mutex
 /// @return Pointer to the mutex's name string
-const char* sces_mutex_name(scesMutexHandle_t mutex)
+const char* os_mutex_name(osMutexHandle_t mutex)
 {
     char* name = NULL;
 
@@ -1229,7 +1244,7 @@ const char* sces_mutex_name(scesMutexHandle_t mutex)
 /// mutex.
 /// @param mutex Handle to the mutex
 /// @return Handle to the task that currently owns the mutex
-scesTaskHandle_t sces_mutex_owner(scesMutexHandle_t mutex)
+osTaskHandle_t os_mutex_owner(osMutexHandle_t mutex)
 {
     TX_THREAD* owner = NULL;
 
@@ -1248,57 +1263,57 @@ scesTaskHandle_t sces_mutex_owner(scesMutexHandle_t mutex)
         return NULL;
     }
 
-    return (scesTaskHandle_t)owner;
+    return (osTaskHandle_t)owner;
 }
 
 /// @brief  Lock a mutex
 /// @details This function locks the specified mutex, blocking the calling task if necessary.
 /// @param mutex   Handle to the mutex
 /// @param timeout Timeout in milliseconds to wait for the mutex (0 for no wait,
-/// SCES_OS_WAIT_FOREVER for infinite wait)
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_mutex_lock(scesMutexHandle_t mutex, uint32_t timeout)
+/// OS_WAIT_FOREVER for infinite wait)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_mutex_lock(osMutexHandle_t mutex, uint32_t timeout)
 {
     if (mutex == NULL)
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_MUTEX*)mutex)->tx_mutex_id != TX_MUTEX_ID)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (tx_mutex_get((TX_MUTEX*)mutex, (ULONG)timeout) != TX_SUCCESS)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Unlock a mutex
 /// @details This function unlocks the specified mutex.
 /// @param mutex Handle to the mutex
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_mutex_unlock(scesMutexHandle_t mutex)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_mutex_unlock(osMutexHandle_t mutex)
 {
     if (mutex == NULL)
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_MUTEX*)mutex)->tx_mutex_id != TX_MUTEX_ID)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (tx_mutex_put((TX_MUTEX*)mutex) != TX_SUCCESS)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Create a new semaphore
@@ -1306,9 +1321,9 @@ scesRetVal_t sces_mutex_unlock(scesMutexHandle_t mutex)
 /// @param name          Name of the semaphore
 /// @param max_count     Maximum count of the semaphore
 /// @return Handle to the created semaphore, or NULL on failure
-scesSemaphoreHandle_t sces_semaphore_create(const char* name, uint32_t max_count)
+osSemaphoreHandle_t os_semaphore_create(const char* name, uint32_t max_count)
 {
-    TX_SEMAPHORE* semaphore = (TX_SEMAPHORE*)mem_alloc(sizeof(TX_SEMAPHORE));
+    TX_SEMAPHORE* semaphore = (TX_SEMAPHORE*)_mem_alloc(sizeof(TX_SEMAPHORE));
 
     if (semaphore == NULL)
     {
@@ -1317,29 +1332,29 @@ scesSemaphoreHandle_t sces_semaphore_create(const char* name, uint32_t max_count
 
     if (tx_semaphore_create(semaphore, (CHAR*)name, (ULONG)max_count) != TX_SUCCESS)
     {
-        mem_free((uint8_t*)semaphore);
+        _mem_free((uint8_t*)semaphore);
         return NULL;
     }
 
-    return (scesSemaphoreHandle_t)semaphore;
+    return (osSemaphoreHandle_t)semaphore;
 }
 
 /// @brief  Delete a semaphore
 /// @details This function deletes the specified semaphore and frees its resources.
 /// @param semaphore Handle to the semaphore to be deleted
-void sces_semaphore_delete(scesSemaphoreHandle_t semaphore)
+void os_semaphore_delete(osSemaphoreHandle_t semaphore)
 {
     if (semaphore != NULL)
     {
         tx_semaphore_delete((TX_SEMAPHORE*)semaphore);
-        mem_free((uint8_t*)semaphore);
+        _mem_free((uint8_t*)semaphore);
     }
 }
 
 /// @brief  Get the name of a semaphore
 /// @param semaphore Handle to the semaphore
 /// @return Pointer to the semaphore's name string
-const char* sces_semaphore_name(scesSemaphoreHandle_t semaphore)
+const char* os_semaphore_name(osSemaphoreHandle_t semaphore)
 {
     char* name = NULL;
 
@@ -1365,7 +1380,7 @@ const char* sces_semaphore_name(scesSemaphoreHandle_t semaphore)
 /// @brief  Get the current count of a semaphore
 /// @param semaphore Handle to the semaphore
 /// @return Current count of the semaphore
-uint32_t sces_semaphore_count(scesSemaphoreHandle_t semaphore)
+uint32_t os_semaphore_count(osSemaphoreHandle_t semaphore)
 {
     ULONG current_count = 0U;
 
@@ -1393,50 +1408,50 @@ uint32_t sces_semaphore_count(scesSemaphoreHandle_t semaphore)
 /// if necessary.
 /// @param semaphore Handle to the semaphore
 /// @param timeout   Timeout in milliseconds to wait for the semaphore (0 for no wait,
-/// SCES_OS_WAIT_FOREVER for infinite wait)
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_semaphore_take(scesSemaphoreHandle_t semaphore, uint32_t timeout)
+/// OS_WAIT_FOREVER for infinite wait)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_semaphore_take(osSemaphoreHandle_t semaphore, uint32_t timeout)
 {
     if (semaphore == NULL)
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_SEMAPHORE*)semaphore)->tx_semaphore_id != TX_SEMAPHORE_ID)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (tx_semaphore_get((TX_SEMAPHORE*)semaphore, (ULONG)timeout) != TX_SUCCESS)
     {
-        return SCES_RET_OS_SEMAPHORE_ERR;
+        return RET_VALUE_OS_SEMAPHORE_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Release (increment) a semaphore
 /// @details This function releases (increments) the specified semaphore.
 /// @param semaphore Handle to the semaphore
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_semaphore_release(scesSemaphoreHandle_t semaphore)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_semaphore_release(osSemaphoreHandle_t semaphore)
 {
     if (semaphore == NULL)
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_SEMAPHORE*)semaphore)->tx_semaphore_id != TX_SEMAPHORE_ID)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (tx_semaphore_put((TX_SEMAPHORE*)semaphore) != TX_SUCCESS)
     {
-        return SCES_RET_OS_SEMAPHORE_ERR;
+        return RET_VALUE_OS_SEMAPHORE_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Create a new task
@@ -1446,48 +1461,43 @@ scesRetVal_t sces_semaphore_release(scesSemaphoreHandle_t semaphore)
 /// @param main        Pointer to the task's main function
 /// @param arg         Argument to be passed to the task's main function
 /// @param stack_size  Size of the task's stack in bytes
-/// @param priority    Priority of the task (use SCES_TASK_PRIORITY_* constants)
+/// @param priority    Priority of the task (use OS_TASK_PRIORITY_* constants)
 /// @return Handle to the created task, or NULL on failure
-scesTaskHandle_t sces_task_create(const char* name, void (*main)(void*), void* arg,
-                                  uint32_t stack_size, scesTaskPriority_t priority)
+osTaskHandle_t os_task_create(const char* name, void (*main)(void*), void* arg, uint32_t stack_size,
+                              osTaskPriority_t priority)
 {
     if ((main == NULL) || (stack_size == 0) || (stack_size < TX_MINIMUM_STACK))
     {
         return NULL;
     }
 
-    TX_THREAD* thread = (TX_THREAD*)mem_alloc(sizeof(TX_THREAD));
+    TX_THREAD* thread = (TX_THREAD*)_mem_alloc(sizeof(TX_THREAD));
 
     if (thread == NULL)
     {
         return NULL;
     }
 
-    VOID* stack = mem_alloc(stack_size);
+    VOID* stack = _mem_alloc(stack_size);
 
     if (stack == NULL)
     {
-        mem_free((uint8_t*)thread);
+        _mem_free((uint8_t*)thread);
         return NULL;
     }
 
-    if (task_main == NULL)
-    {
-        task_main = main;
-    }
+    UINT converted_priority = (UINT)(OS_TASK_PRIORITY_MAX - priority);
 
-    UINT converted_priority = (UINT)(SCES_TASK_PRIORITY_MAX - priority);
-
-    if (tx_thread_create(thread, (CHAR*)name, threadx_task_main, (ULONG)arg, stack, stack_size,
-                         (UINT)converted_priority, converted_priority, SCES_OS_DEFAULT_TIME_SLICE,
+    if (tx_thread_create(thread, (CHAR*)name, (void (*)(ULONG))main, (ULONG)arg, stack, stack_size,
+                         (UINT)converted_priority, converted_priority, OS_DEFAULT_TIME_SLICE,
                          TX_AUTO_START) != TX_SUCCESS)
     {
-        mem_free((uint8_t*)stack);
-        mem_free((uint8_t*)thread);
+        _mem_free((uint8_t*)stack);
+        _mem_free((uint8_t*)thread);
         return NULL;
     }
 
-    return (scesTaskHandle_t)thread;
+    return (osTaskHandle_t)thread;
 }
 
 /// @brief  Create a new task with static stack allocation
@@ -1498,46 +1508,40 @@ scesTaskHandle_t sces_task_create(const char* name, void (*main)(void*), void* a
 /// @param arg         Argument to be passed to the task's main function
 /// @param stack       Pointer to the static stack buffer
 /// @param stack_size  Size of the task's stack in bytes
-/// @param priority    Priority of the task (use SCES_TASK_PRIORITY_* constants)
+/// @param priority    Priority of the task (use OS_TASK_PRIORITY_* constants)
 /// @return Handle to the created task, or NULL on failure
-scesTaskHandle_t sces_task_create_static(const char* name, void (*main)(void*), void* arg,
-                                         uint8_t* stack, uint32_t stack_size,
-                                         scesTaskPriority_t priority)
+osTaskHandle_t os_task_create_static(const char* name, void (*main)(void*), void* arg,
+                                     uint8_t* stack, uint32_t stack_size, osTaskPriority_t priority)
 {
     if ((main == NULL) || (stack == NULL) || (stack_size == 0) || (stack_size < TX_MINIMUM_STACK))
     {
         return NULL;
     }
 
-    TX_THREAD* thread = (TX_THREAD*)mem_alloc(sizeof(TX_THREAD));
+    TX_THREAD* thread = (TX_THREAD*)_mem_alloc(sizeof(TX_THREAD));
 
     if (thread == NULL)
     {
         return NULL;
     }
 
-    if (task_main == NULL)
-    {
-        task_main = main;
-    }
+    UINT converted_priority = (UINT)(OS_TASK_PRIORITY_MAX - priority);
 
-    UINT converted_priority = (UINT)(SCES_TASK_PRIORITY_MAX - priority);
-
-    if (tx_thread_create(thread, (CHAR*)name, threadx_task_main, (ULONG)arg, (VOID*)stack,
+    if (tx_thread_create(thread, (CHAR*)name, (void (*)(ULONG))main, (ULONG)arg, (VOID*)stack,
                          stack_size, (UINT)converted_priority, converted_priority,
-                         SCES_OS_DEFAULT_TIME_SLICE, TX_AUTO_START) != TX_SUCCESS)
+                         OS_DEFAULT_TIME_SLICE, TX_AUTO_START) != TX_SUCCESS)
     {
-        mem_free((uint8_t*)thread);
+        _mem_free((uint8_t*)thread);
         return NULL;
     }
 
-    return (scesTaskHandle_t)thread;
+    return (osTaskHandle_t)thread;
 }
 
 /// @brief  Delete a task
 /// @details This function deletes the specified task and frees its resources.
 /// @param task Handle to the task to be deleted
-void sces_task_delete(scesTaskHandle_t task)
+void os_task_delete(osTaskHandle_t task)
 {
     VOID* stack = ((TX_THREAD*)task)->tx_thread_stack_start;
 
@@ -1546,8 +1550,8 @@ void sces_task_delete(scesTaskHandle_t task)
         if (tx_thread_terminate((TX_THREAD*)task) == TX_SUCCESS)
         {
             tx_thread_delete((TX_THREAD*)task);
-            mem_free((uint8_t*)stack);
-            mem_free((uint8_t*)task);
+            _mem_free((uint8_t*)stack);
+            _mem_free((uint8_t*)task);
         }
     }
 }
@@ -1555,14 +1559,14 @@ void sces_task_delete(scesTaskHandle_t task)
 /// @brief  Delete a task created with static stack allocation
 /// @details This function deletes the specified task created with static stack allocation.
 /// @param task Handle to the task to be deleted
-void sces_task_delete_static(scesTaskHandle_t task)
+void os_task_delete_static(osTaskHandle_t task)
 {
     if ((task != NULL) && (((TX_THREAD*)task)->tx_thread_id == TX_THREAD_ID))
     {
         if (tx_thread_terminate((TX_THREAD*)task) == TX_SUCCESS)
         {
             tx_thread_delete((TX_THREAD*)task);
-            mem_free((uint8_t*)task);
+            _mem_free((uint8_t*)task);
         }
     }
 }
@@ -1570,7 +1574,7 @@ void sces_task_delete_static(scesTaskHandle_t task)
 /// @brief  Get the name of a task
 /// @param task Handle to the task control block
 /// @return Pointer to the task's name string
-const char* sces_task_name(scesTaskHandle_t task)
+const char* os_task_name(osTaskHandle_t task)
 {
     char* name = NULL;
 
@@ -1596,7 +1600,7 @@ const char* sces_task_name(scesTaskHandle_t task)
 /// @brief  Get the current state of a task
 /// @param task Handle to the task control block
 /// @return Current state of the task
-uint32_t sces_task_stack_size(scesTaskHandle_t task)
+uint32_t os_task_stack_size(osTaskHandle_t task)
 {
     if (task == NULL)
     {
@@ -1614,134 +1618,134 @@ uint32_t sces_task_stack_size(scesTaskHandle_t task)
 /// @brief  Get the priority of a task
 /// @param task Handle to the task control block
 /// @return Priority of the task
-scesTaskPriority_t sces_task_priority(scesTaskHandle_t task)
+osTaskPriority_t os_task_priority(osTaskHandle_t task)
 {
     if (task == NULL)
     {
-        return SCES_TASK_PRIORITY_NONE;
+        return OS_TASK_PRIORITY_NONE;
     }
 
     if (((TX_THREAD*)task)->tx_thread_id != TX_THREAD_ID)
     {
-        return SCES_TASK_PRIORITY_NONE;
+        return OS_TASK_PRIORITY_NONE;
     }
 
-    UINT priority = SCES_TASK_PRIORITY_NONE;
+    UINT priority = OS_TASK_PRIORITY_NONE;
 
     if (tx_thread_info_get((TX_THREAD*)task, NULL, NULL, NULL, &priority, NULL, NULL, NULL, NULL) !=
         TX_SUCCESS)
     {
-        return SCES_TASK_PRIORITY_NONE;
+        return OS_TASK_PRIORITY_NONE;
     }
 
-    return convert_threadx_task_priority(priority);
+    return _convert_threadx_task_priority(priority);
 }
 
 /// @brief  Get the current state of a task
 /// @param task Handle to the task control block
 /// @return Current state of the task
-scesTaskState_t sces_task_state(scesTaskHandle_t task)
+osTaskState_t os_task_state(osTaskHandle_t task)
 {
     UINT state;
 
     if (task == NULL)
     {
-        return SCES_TASK_STATE_UNKNOWN;
+        return OS_TASK_STATE_UNKNOWN;
     }
 
     if (((TX_THREAD*)task)->tx_thread_id != TX_THREAD_ID)
     {
-        return SCES_TASK_STATE_UNKNOWN;
+        return OS_TASK_STATE_UNKNOWN;
     }
 
-    if (sces_os_current_task() == task)
+    if (os_current_task() == task)
     {
-        return SCES_TASK_STATE_RUNNING;
+        return OS_TASK_STATE_RUNNING;
     }
 
     if (tx_thread_info_get((TX_THREAD*)task, NULL, &state, NULL, NULL, NULL, NULL, NULL, NULL) !=
         TX_SUCCESS)
     {
-        return SCES_TASK_STATE_UNKNOWN;
+        return OS_TASK_STATE_UNKNOWN;
     }
 
-    return convert_threadx_task_state(state);
+    return _convert_threadx_task_state(state);
 }
 
 /// @brief  Set the priority of a task
 /// @param task     Handle to the task control block
 /// @param priority New priority to be set for the task
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_task_set_priority(scesTaskHandle_t task, scesTaskPriority_t priority)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_task_set_priority(osTaskHandle_t task, osTaskPriority_t priority)
 {
     UINT current_priority;
     UINT converted_priority;
 
     if (task == NULL)
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_THREAD*)task)->tx_thread_id != TX_THREAD_ID)
     {
-        return SCES_RET_INSTANCE_UNAVAILABLE;
+        return RET_VALUE_INSTANCE_UNAVAILABLE;
     }
 
-    converted_priority = (UINT)(SCES_TASK_PRIORITY_MAX - priority);
+    converted_priority = (UINT)(OS_TASK_PRIORITY_MAX - priority);
 
     if (tx_thread_priority_change((TX_THREAD*)task, converted_priority, &current_priority) !=
         TX_SUCCESS)
     {
-        return SCES_RET_OS_TASK_ERR;
+        return RET_VALUE_OS_TASK_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Suspend a task
 /// @param task Handle to the task control block to be suspended
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_task_suspend(scesTaskHandle_t task)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_task_suspend(osTaskHandle_t task)
 {
     if (task == NULL)
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_THREAD*)task)->tx_thread_id != TX_THREAD_ID)
     {
-        return SCES_RET_INSTANCE_UNAVAILABLE;
+        return RET_VALUE_INSTANCE_UNAVAILABLE;
     }
 
     if (tx_thread_suspend((TX_THREAD*)task) != TX_SUCCESS)
     {
-        return SCES_RET_OS_TASK_ERR;
+        return RET_VALUE_OS_TASK_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Resume a suspended task
 /// @param task Handle to the task control block to be resumed
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_task_resume(scesTaskHandle_t task)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_task_resume(osTaskHandle_t task)
 {
     if (task == NULL)
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_THREAD*)task)->tx_thread_id != TX_THREAD_ID)
     {
-        return SCES_RET_INSTANCE_UNAVAILABLE;
+        return RET_VALUE_INSTANCE_UNAVAILABLE;
     }
 
     if (tx_thread_resume((TX_THREAD*)task) != TX_SUCCESS)
     {
-        return SCES_RET_OS_TASK_ERR;
+        return RET_VALUE_OS_TASK_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Create a new timer
@@ -1750,33 +1754,28 @@ scesRetVal_t sces_task_resume(scesTaskHandle_t task)
 /// @param callback    Pointer to the timer's callback function
 /// @param arg         Argument to be passed to the timer's callback function
 /// @return Handle to the created timer, or NULL on failure
-scesTimerHandle_t sces_timer_create_once(const char* name, void (*callback)(void*), void* arg)
+osTimerHandle_t os_timer_create_once(const char* name, void (*callback)(void*), void* arg)
 {
     if (callback == NULL)
     {
         return NULL;
     }
 
-    TX_TIMER* timer = (TX_TIMER*)mem_alloc(sizeof(TX_TIMER));
+    TX_TIMER* timer = (TX_TIMER*)_mem_alloc(sizeof(TX_TIMER));
 
     if (timer == NULL)
     {
         return NULL;
     }
 
-    if (timer_callback == NULL)
-    {
-        timer_callback = callback;
-    }
-
-    if (tx_timer_create(timer, (CHAR*)name, threadx_timer_callback, (ULONG)arg, 1, 0,
+    if (tx_timer_create(timer, (CHAR*)name, (void (*)(ULONG))callback, (ULONG)arg, 1, 0,
                         TX_NO_ACTIVATE) != TX_SUCCESS)
     {
-        mem_free((uint8_t*)timer);
+        _mem_free((uint8_t*)timer);
         return NULL;
     }
 
-    return (scesTimerHandle_t)timer;
+    return (osTimerHandle_t)timer;
 }
 
 /// @brief  Create a new periodic timer
@@ -1784,51 +1783,46 @@ scesTimerHandle_t sces_timer_create_once(const char* name, void (*callback)(void
 /// @param name        Name of the timer
 /// @param callback    Pointer to the timer's callback function
 /// @param arg         Argument to be passed to the timer's callback function
-scesTimerHandle_t sces_timer_create_periodic(const char* name, void (*callback)(void*), void* arg)
+osTimerHandle_t os_timer_create_periodic(const char* name, void (*callback)(void*), void* arg)
 {
     if (callback == NULL)
     {
         return NULL;
     }
 
-    TX_TIMER* timer = (TX_TIMER*)mem_alloc(sizeof(TX_TIMER));
+    TX_TIMER* timer = (TX_TIMER*)_mem_alloc(sizeof(TX_TIMER));
 
     if (timer == NULL)
     {
         return NULL;
     }
 
-    if (timer_callback == NULL)
-    {
-        timer_callback = callback;
-    }
-
-    if (tx_timer_create(timer, (CHAR*)name, threadx_timer_callback, (ULONG)arg, 1, 1,
+    if (tx_timer_create(timer, (CHAR*)name, (void (*)(ULONG))callback, (ULONG)arg, 1, 1,
                         TX_NO_ACTIVATE) != TX_SUCCESS)
     {
-        mem_free((uint8_t*)timer);
+        _mem_free((uint8_t*)timer);
         return NULL;
     }
 
-    return (scesTimerHandle_t)timer;
+    return (osTimerHandle_t)timer;
 }
 
 /// @brief  Delete a timer
 /// @details This function deletes the specified timer and frees its resources.
 /// @param timer Handle to the timer to be deleted
-void sces_timer_delete(scesTimerHandle_t timer)
+void os_timer_delete(osTimerHandle_t timer)
 {
     if (timer != NULL)
     {
         tx_timer_delete((TX_TIMER*)timer);
-        mem_free((uint8_t*)timer);
+        _mem_free((uint8_t*)timer);
     }
 }
 
 /// @brief  Get the name of a timer
 /// @param timer Handle to the timer
 /// @return Pointer to the timer's name string
-const char* sces_timer_name(scesTimerHandle_t timer)
+const char* os_timer_name(osTimerHandle_t timer)
 {
     char* name = NULL;
 
@@ -1853,82 +1847,82 @@ const char* sces_timer_name(scesTimerHandle_t timer)
 /// @brief  Get the current state of a timer
 /// @param timer Handle to the timer
 /// @return Current state of the timer
-scesTimerState_t sces_timer_state(scesTimerHandle_t timer)
+osTimerState_t os_timer_state(osTimerHandle_t timer)
 {
     UINT active;
 
     if (timer == NULL)
     {
-        return SCES_TIMER_STATE_UNKNOWN;
+        return OS_TIMER_STATE_UNKNOWN;
     }
 
     if (((TX_TIMER*)timer)->tx_timer_id != TX_TIMER_ID)
     {
-        return SCES_TIMER_STATE_UNKNOWN;
+        return OS_TIMER_STATE_UNKNOWN;
     }
 
     if (tx_timer_info_get((TX_TIMER*)timer, NULL, &active, NULL, NULL, NULL) != TX_SUCCESS)
     {
-        return SCES_TIMER_STATE_UNKNOWN;
+        return OS_TIMER_STATE_UNKNOWN;
     }
 
     if (!active)
     {
-        return SCES_TIMER_STATE_IDLE;
+        return OS_TIMER_STATE_IDLE;
     }
 
-    return SCES_TIMER_STATE_ACTIVE;
+    return OS_TIMER_STATE_ACTIVE;
 }
 
 /// @brief  Start a timer
 /// @details This function starts the specified timer with the given timeout.
 /// @param timer   Handle to the timer
 /// @param timeout Timeout in OS count for the timer
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_timer_start(scesTimerHandle_t timer, uint32_t timeout)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t os_timer_start(osTimerHandle_t timer, uint32_t timeout)
 {
     if (timer == NULL)
     {
-        return SCES_RET_NULL_REF;
+        return RET_VALUE_NULL_REF;
     }
 
     if (((TX_TIMER*)timer)->tx_timer_id != TX_TIMER_ID)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     UINT active;
 
     if (tx_timer_info_get((TX_TIMER*)timer, NULL, &active, NULL, NULL, NULL) != TX_SUCCESS)
     {
-        return SCES_RET_OS_TIMER_ERR;
+        return RET_VALUE_OS_TIMER_ERR;
     }
 
     if (active)
     {
         if (tx_timer_deactivate((TX_TIMER*)timer) != TX_SUCCESS)
         {
-            return SCES_RET_OS_TIMER_ERR;
+            return RET_VALUE_OS_TIMER_ERR;
         }
     }
 
     if (tx_timer_change((TX_TIMER*)timer, (ULONG)timeout, (ULONG)timeout) != TX_SUCCESS)
     {
-        return SCES_RET_OS_TIMER_ERR;
+        return RET_VALUE_OS_TIMER_ERR;
     }
 
     if (tx_timer_activate((TX_TIMER*)timer) != TX_SUCCESS)
     {
-        return SCES_RET_OS_TIMER_ERR;
+        return RET_VALUE_OS_TIMER_ERR;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief  Stop a timer
 /// @details This function stops the specified timer.
 /// @param timer Handle to the timer
-void sces_timer_stop(scesTimerHandle_t timer)
+void os_timer_stop(osTimerHandle_t timer)
 {
     UINT active;
 
