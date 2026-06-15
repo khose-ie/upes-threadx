@@ -1,33 +1,41 @@
 
 #include <fx_api.h>
-#include <sces-conf.h>
-#include <sces-fs.h>
+#include <tx_byte_pool.h>
+#include <upes-filex.h>
+#include <upes-media.h>
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-#include <tx_byte_pool.h>
+#endif // __cplusplus
 
-#ifndef SCES_FS_MEDIA_COUNT
-#define SCES_FS_MEDIA_COUNT (1)
-#endif // SCES_FS_MEDIA_COUNT
+#ifndef UPES_FILEX_MEDIA_COUNT
+#define MEDIA_COUNT (1)
+#else // UPES_FILEX_MEDIA_COUNT
+#define MEDIA_COUNT (UPES_FILEX_MEDIA_COUNT)
+#endif // UPES_FILEX_MEDIA_COUNT
 
-#ifndef SCES_FS_MEDIA_EACH_WORK_SIZE
-#define SCES_FS_MEDIA_EACH_WORK_SIZE (4096)
-#else // SCES_FS_MEDIA_EACH_WORK_SIZE
-#define SCES_FS_MEDIA_EACH_WORK_SIZE sces_aligned_sizeof(SCES_FS_MEDIA_EACH_WORK_SIZE, ALIGN_TYPE)
-#endif // SCES_FS_MEDIA_EACH_WORK_SIZE
+#ifndef UPES_FILEX_MEDIA_WORK_SIZE
+#define MEDIA_WORK_SIZE (4096)
+#else // UPES_FILEX_MEDIA_WORK_SIZE
+#define MEDIA_WORK_SIZE align32down(UPES_FILEX_MEDIA_WORK_SIZE)
+#endif // UPES_FILEX_MEDIA_WORK_SIZE
 
-#ifndef SCES_FS_MAX_OPEN_COUNT
-#define SCES_FS_MAX_OPEN_COUNT (8)
-#endif // SCES_FS_MAX_OPEN_COUNT
+#ifndef UPES_FILEX_MAX_OPEN_ENTITIES
+#define MAX_OPEN_ENTITIES (8)
+#else // UPES_FILEX_MAX_OPEN_ENTITIES
+#define MAX_OPEN_ENTITIES (UPES_FILEX_MAX_OPEN_ENTITIES)
+#endif // UPES_FILEX_MAX_OPEN_ENTITIES
 
-#ifndef SCES_FS_STACK_MEM
-#define STATIC            static
-#define SCES_FS_STACK_MEM fs_stack_mem
-#else // SCES_FS_STACK_MEM
-#define STATIC extern
-#endif // SCES_FS_STACK_MEM
+/// @brief FS stack memory configuration
+/// @details This section defines the memory configuration for the FS stack, including whether
+///          external memory is used and the corresponding memory pool variable.
+#ifndef UPES_FILEX_STACK_EX_MEM
+#define EXT1            static
+#define FILEX_STACK_MEM _stack_mem
+#else // UPES_FILEX_STACK_EX_MEM
+#define EXT1            extern
+#define FILEX_STACK_MEM (UPES_FILEX_STACK_EX_MEM)
+#endif // UPES_FILEX_STACK_EX_MEM
 
 /// @brief Size of memory header for ThreadX block pool allocations
 /// @details This constant defines the size of the memory header
@@ -37,31 +45,28 @@ extern "C" {
 /// @brief Media management requested memory size calculation
 /// @details This macro calculates the total memory size required for media management,
 ///          including the size of the media structures and the associated mutexes,
-#define SCES_FS_MEDIA_SIZE                                                                         \
-    (SCES_FS_MEDIA_COUNT * ((sces_aligned_sizeof(SCES_MEDIA, ALIGN_TYPE) + TX_MEM_HEAD_SIZE)))
-
-/// @brief Media work requested memory size calculation
-/// @details This macro calculates the total memory size required for media work operations,
-///          including the size of the work stacks for each media.
-#define SCES_FS_MEDIA_WORK_SIZE                                                                    \
-    (SCES_FS_MEDIA_COUNT * (SCES_FS_MEDIA_EACH_WORK_SIZE + TX_MEM_HEAD_SIZE))
+#define FILEX_MEDIA_SIZE (MEDIA_COUNT * (align32up(sizeof(filexMediaStack_t)) + TX_MEM_HEAD_SIZE))
 
 /// @brief Open handle requested memory size calculation
 /// @details This macro calculates the total memory size required for open file and directory
 /// handles,
 ///          including the size of the file and directory items.
-#define SCES_FS_OPEN_HANDLE_SIZE                                                                   \
-    (SCES_FS_MAX_OPEN_COUNT * (sces_aligned_sizeof(scesFileItem_t, ALIGN_TYPE) + TX_MEM_HEAD_SIZE))
+#define FILEX_OPEN_HANDLE_SIZE                                                                     \
+    (MAX_OPEN_ENTITIES * (align32up(sizeof(filexEntity_t)) + TX_MEM_HEAD_SIZE))
 
 /// @brief Total requested memory size calculation
 /// @details This macro calculates the total memory size required for the entire FS stack,
 ///          including media management, media work, and open handle memory requirements.
-#define SCES_FS_STACK_MEM_REQUIRED_SIZE                                                            \
-    (SCES_FS_MEDIA_SIZE + SCES_FS_MEDIA_WORK_SIZE + SCES_FS_OPEN_HANDLE_SIZE)
+#define FILEX_STACK_MEM_REQUIRED_SIZE (FILEX_MEDIA_SIZE + FILEX_OPEN_HANDLE_SIZE)
 
-#ifndef SCES_FS_STACK_MEM_SIZE
-#define SCES_FS_STACK_MEM_SIZE SCES_FS_STACK_MEM_REQUIRED_SIZE
-#endif // SCES_FS_STACK_MEM_SIZE
+/// @brief FS stack memory size configuration
+/// @details This section defines the size of the FS stack memory, taking into account whether
+///          external memory is used and the corresponding memory size macro.
+#ifndef UPES_FILEX_STACK_EX_MEM_SIZE
+#define FILEX_STACK_MEM_SIZE (FILEX_STACK_MEM_REQUIRED_SIZE)
+#else // UPES_FILEX_STACK_EX_MEM_SIZE
+#define FILEX_STACK_MEM_SIZE align32down(UPES_FILEX_STACK_EX_MEM_SIZE)
+#endif // UPES_FILEX_STACK_EX_MEM_SIZE
 
 /// @brief Media information structure
 /// @details This structure holds the FX_MEDIA and associated mutex for thread-safe operations.
@@ -69,17 +74,23 @@ typedef struct
 {
     FX_MEDIA media;
     TX_MUTEX mutex;
-} SCES_MEDIA;
+    mediaDiskIO_t diskio;
+    uint8_t workspace[MEDIA_WORK_SIZE];
+} filexMediaStack_t;
+
+/// @brief File information structure
+/// @details This typedef represents a file in the FileX file system.
+typedef FX_FILE filexFile_t;
 
 /// @brief Directory information structure
 /// @details This structure holds information about a directory, including its media pointer,
 ///          path, and current entry index.
 typedef struct
 {
-    SCES_MEDIA* media;
+    filexMediaStack_t* media;
     char path[FX_MAX_LONG_NAME_LEN];
     uint32_t entry_index;
-} SCES_DIR;
+} filexDir_t;
 
 /// @brief Disk information structure
 /// @details This structure holds information about a disk, including its disk number.
@@ -93,51 +104,38 @@ typedef struct
 ///          which can be either a file or a directory.
 typedef union
 {
-    FX_FILE file;
-    SCES_DIR dir;
+    filexFile_t file;
+    filexDir_t dir;
     uint8_t raw[TX_BYTE_BLOCK_MIN];
-} scesFileItem_t;
+} filexEntity_t;
+
+/// @brief Open entity stack structure
+/// @details This structure holds the block pool and memory for open file and directory entities.
+typedef struct
+{
+    TX_BLOCK_POOL stack;
+    uint8_t stack_mem[align32up(sizeof(filexEntity_t)) * MAX_OPEN_ENTITIES];
+} filexEntityStack_t;
+
+/// @brief FileX stack structure
+/// @details This structure holds the media and open entity arrays for the FileX file system.
+typedef struct
+{
+    filexMediaStack_t media[MEDIA_COUNT];
+    filexEntityStack_t entities;
+} filexStack_t;
 
 /// @brief FS stack memory
 /// @details This array serves as the memory pool for the FS stack, which includes media management,
 ///          media work, and open handle memory. The size of this array is defined by the
-///          SCES_FS_STACK_MEM_SIZE macro, which can be configured based on the requirements of
+///          FILEX_STACK_MEM_SIZE macro, which can be configured based on the requirements of
 ///          the file system and the number of media and open handles needed.
-STATIC uint8_t SCES_FS_STACK_MEM[SCES_FS_STACK_MEM_SIZE];
+EXT1 uint8_t FILEX_STACK_MEM[FILEX_STACK_MEM_SIZE];
 
-/// @brief FS stack block pool
-/// @details This block pool is used for allocating memory blocks for
-/// media operations.
-static TX_BLOCK_POOL fs_media;
-
-/// @brief FS stack memory zone
-/// @details This memory zone is used for the FS stack, containing FX_MEDIA
-/// structures.
-const uint8_t* fs_media_mem = SCES_FS_STACK_MEM;
-
-/// @brief FS work block pool
-/// @details This block pool is used for allocating memory blocks for media
-/// work operations.
-static TX_BLOCK_POOL fs_works;
-
-/// @brief FS work memory zone
-/// @details This memory zone is used for the FS work, containing work
-/// stacks for each media
-const uint8_t* fs_works_mem = SCES_FS_STACK_MEM + SCES_FS_MEDIA_SIZE;
-
-/// @brief FS open handle block pool
-/// @details This block pool is used for allocating file and directory
-/// handles.
-static TX_BLOCK_POOL fs_items;
-
-/// @brief FS open handle memory zone
-/// @details This memory zone is used for the FS open handles, containing
-/// file and directory items
-const uint8_t* fs_items_mem = SCES_FS_STACK_MEM + SCES_FS_MEDIA_SIZE + SCES_FS_MEDIA_WORK_SIZE;
-
-/// @brief Disk I/O driver function
-/// @details This function serves as the disk I/O driver for FileX.
-static scesFileDiskIO_t diskio_table[SCES_FS_MEDIA_COUNT];
+/// @brief FileX control block pointer
+/// @details This pointer points to the control block of the FileX file system, which is
+///          allocated from the FS stack memory.
+static filexStack_t* _filex = (filexStack_t*)FILEX_STACK_MEM;
 
 /// @brief Allocate a memory block for media operations
 /// @details This function allocates a memory block for media operations
@@ -170,57 +168,37 @@ static void mem_block_free(uint8_t* mem)
 /// @brief Lock a mutex
 /// @details This function locks the specified mutex.
 /// @param mutex Pointer to the mutex to lock
-/// @return SCES_RET_OK on success, error code otherwise
-static scesRetVal_t mutex_lock(TX_MUTEX* mutex)
+/// @return RET_VALUE_OK on success, error code otherwise
+static RetValue_t mutex_lock(TX_MUTEX* mutex)
 {
 #ifndef SINGLE_THREAD
 
     if (tx_mutex_get(mutex, 500) != TX_SUCCESS)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
 #endif // SINGLE_THREAD
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Unlock a mutex
 /// @details This function unlocks the specified mutex.
 /// @param mutex Pointer to the mutex to unlock
-/// @return SCES_RET_OK on success, error code otherwise
-static scesRetVal_t mutex_unlock(TX_MUTEX* mutex)
+/// @return RET_VALUE_OK on success, error code otherwise
+static RetValue_t mutex_unlock(TX_MUTEX* mutex)
 {
 #ifndef SINGLE_THREAD
 
     if (tx_mutex_put(mutex) != TX_SUCCESS)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
 #endif // SINGLE_THREAD
 
-    return SCES_RET_OK;
-}
-
-/// @brief Search for the disk I/O driver for a given disk number
-/// @details This function searches for the disk I/O driver associated
-///          with the specified disk number.
-/// @param disk_num Disk number to search for
-/// @return Pointer to the disk I/O driver structure, or NULL if not found
-static scesFileDiskIO_t* search_diskio(uint32_t disk_num)
-{
-    if (disk_num >= SCES_FS_MEDIA_COUNT)
-    {
-        return NULL;
-    }
-
-    if (diskio_table[disk_num].status == NULL)
-    {
-        return NULL;
-    }
-
-    return &diskio_table[disk_num];
+    return RET_VALUE_OK;
 }
 
 /// @brief Disk I/O driver function
@@ -232,8 +210,7 @@ static void diskio_main(FX_MEDIA* media)
     uint32_t partition_start;
     uint32_t partition_size;
 
-    diskInfo_t* disk         = (diskInfo_t*)media->fx_media_driver_info;
-    scesFileDiskIO_t* diskio = search_diskio(disk->disk_num);
+    mediaDiskIO_t* diskio = (mediaDiskIO_t*)media->fx_media_driver_info;
 
     if (diskio == NULL)
     {
@@ -241,7 +218,7 @@ static void diskio_main(FX_MEDIA* media)
         return;
     }
 
-    if (diskio->status() != SCES_RET_OK)
+    if (diskio->status() != RET_VALUE_OK)
     {
         media->fx_media_driver_status = FX_IO_ERROR;
         return;
@@ -255,7 +232,7 @@ static void diskio_main(FX_MEDIA* media)
     {
         if (diskio->read(media->fx_media_hidden_sectors + media->fx_media_driver_logical_sector,
                          media->fx_media_driver_sectors,
-                         media->fx_media_driver_buffer) != SCES_RET_OK)
+                         media->fx_media_driver_buffer) != RET_VALUE_OK)
         {
             media->fx_media_driver_status = FX_IO_ERROR;
         }
@@ -267,7 +244,7 @@ static void diskio_main(FX_MEDIA* media)
     {
         if (diskio->write(media->fx_media_hidden_sectors + media->fx_media_driver_logical_sector,
                           media->fx_media_driver_sectors,
-                          media->fx_media_driver_buffer) != SCES_RET_OK)
+                          media->fx_media_driver_buffer) != RET_VALUE_OK)
         {
             media->fx_media_driver_status = FX_IO_ERROR;
         }
@@ -277,7 +254,7 @@ static void diskio_main(FX_MEDIA* media)
 
     case FX_DRIVER_FLUSH:
     {
-        if (diskio->flush() != SCES_RET_OK)
+        if (diskio->flush() != RET_VALUE_OK)
         {
             media->fx_media_driver_status = FX_IO_ERROR;
         }
@@ -298,7 +275,7 @@ static void diskio_main(FX_MEDIA* media)
     case FX_DRIVER_BOOT_READ:
     {
         if (diskio->read(0, media->fx_media_driver_sectors, media->fx_media_driver_buffer) !=
-            SCES_RET_OK)
+            RET_VALUE_OK)
         {
             media->fx_media_driver_status = FX_IO_ERROR;
             break;
@@ -322,7 +299,7 @@ static void diskio_main(FX_MEDIA* media)
         }
 
         if (diskio->read(partition_start, media->fx_media_driver_sectors,
-                         media->fx_media_driver_buffer) != SCES_RET_OK)
+                         media->fx_media_driver_buffer) != RET_VALUE_OK)
         {
             media->fx_media_driver_status = FX_IO_ERROR;
             break;
@@ -339,7 +316,7 @@ static void diskio_main(FX_MEDIA* media)
     case FX_DRIVER_BOOT_WRITE:
     {
         if (diskio->write(0, media->fx_media_driver_sectors, media->fx_media_driver_buffer) !=
-            SCES_RET_OK)
+            RET_VALUE_OK)
         {
             media->fx_media_driver_status = FX_IO_ERROR;
         }
@@ -358,64 +335,64 @@ static void diskio_main(FX_MEDIA* media)
     }
 }
 
-static scesRetVal_t check_fs_feasibility(const scesFsInfo_t* info, const scesFileDiskIO_t* diskio)
+static RetValue_t check_fs_feasibility(const mediaState_t* state, const mediaDiskIO_t* diskio)
 {
-    scesRetVal_t value     = SCES_RET_PARAM_ERR;
-    uint32_t cluster_count = (diskio->sector_count() - 1) / info->sectors_per_cluster;
+    RetValue_t value       = RET_VALUE_PARAM_ERR;
+    uint32_t cluster_count = (diskio->sector_count() - 1) / state->sectors_per_cluster;
 
-    if ((info->sectors_per_cluster == 0) || (info->num_of_fats > 2))
+    if ((state->sectors_per_cluster == 0) || (state->num_of_fats > 2))
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
-    switch (info->kind)
+    switch (state->kind)
     {
-    case SCES_FS_FAT12:
+    case MEDIA_FORMAT_FAT12:
     {
         if (cluster_count > 4084)
         {
             break;
         }
 
-        value = SCES_RET_OK;
+        value = RET_VALUE_OK;
         break;
     }
 
-    case SCES_FS_FAT16:
+    case MEDIA_FORMAT_FAT16:
     {
         if ((cluster_count < 4085) || (cluster_count > 65524))
         {
             break;
         }
 
-        if (info->directory_entries == 0)
+        if (state->directory_entries == 0)
         {
             break;
         }
 
-        value = SCES_RET_OK;
+        value = RET_VALUE_OK;
         break;
     }
 
-    case SCES_FS_FAT32:
+    case MEDIA_FORMAT_FAT32:
     {
         if (cluster_count < 65525)
         {
             break;
         }
 
-        value = SCES_RET_OK;
+        value = RET_VALUE_OK;
         break;
     }
 
-    case SCES_FS_EXFAT:
+    case MEDIA_FORMAT_EXFAT:
     {
         if ((diskio->sector_size() < 512) || (diskio->sector_size() & (diskio->sector_size() - 1)))
         {
             break;
         }
 
-        value = SCES_RET_OK;
+        value = RET_VALUE_OK;
         break;
     }
     }
@@ -427,68 +404,55 @@ static scesRetVal_t check_fs_feasibility(const scesFsInfo_t* info, const scesFil
 /// @details This function initializes the global file system subsystem.
 ///     It must be called once before any sces_fs_mount() operation. For some file systems (e.g.
 ///     FileX), this function performs underlying system-level initialization.
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_fs_initialize(void)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_initialize(void)
 {
-    if (SCES_FS_STACK_MEM_SIZE < SCES_FS_STACK_MEM_REQUIRED_SIZE)
+    if (FILEX_STACK_MEM_SIZE < FILEX_STACK_MEM_REQUIRED_SIZE)
     {
-        return SCES_RET_STACK_OVERFLOW;
+        return RET_VALUE_STACK_OVERFLOW;
     }
 
-    memset(fs_stack_mem, 0, sizeof(fs_stack_mem));
+    memset(_filex, 0, sizeof(*_filex));
 
-    if (tx_block_pool_create(&fs_media, "FS Media", fs_media_mem,
-                             sces_aligned_sizeof(FX_MEDIA, ALIGN_TYPE),
-                             SCES_FS_MEDIA_SIZE) != TX_SUCCESS)
+    if (tx_block_pool_create(&_filex->entities.stack, "FS Entities Pool",
+                             align32up(sizeof(filexEntity_t)), _filex->entities.stack_mem,
+                             sizeof(_filex->entities.stack_mem)) != TX_SUCCESS)
     {
-        return SCES_RET_OS_MEM_POOL_ERR;
-    }
-
-    if (tx_block_pool_create(&fs_works, "FS Works", fs_works_mem, SCES_FS_WORK_STACK_SIZE,
-                             SCES_FS_MEDIA_WORK_SIZE) != TX_SUCCESS)
-    {
-        return SCES_RET_OS_MEM_POOL_ERR;
-    }
-
-    if (tx_block_pool_create(&fs_items, "FS Open Handles", fs_items_mem,
-                             sces_aligned_sizeof(scesFileItem_t, ALIGN_TYPE),
-                             SCES_FS_OPEN_HANDLE_SIZE) != TX_SUCCESS)
-    {
-        return SCES_RET_OS_MEM_POOL_ERR;
+        return RET_VALUE_MEM_ALLOC_FAILURE;
     }
 
     fx_system_initialize();
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Set disk I/O driver function
 /// @details This function sets the disk I/O driver function for the specified disk number.
 /// @param disk_num Disk number for which to set the disk I/O driver function
 /// @param diskio Pointer to the disk I/O driver structure
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_fs_set_diskio(uint32_t disk_num, const scesFileDiskIO_t* diskio)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_set_diskio(uint32_t disk_num, const mediaDiskIO_t* diskio)
 {
-    if (disk_num >= SCES_FS_MEDIA_COUNT || diskio == NULL)
+    if (disk_num >= MEDIA_COUNT || diskio == NULL)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (diskio->read == NULL || diskio->write == NULL || diskio->flush == NULL ||
         diskio->trim == NULL || diskio->status == NULL || diskio->sector_count == NULL ||
         diskio->sector_size == NULL || diskio->block_size == NULL)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
-    if (diskio_table[disk_num].status != NULL)
+    if (_filex->media[disk_num].diskio.status != NULL)
     {
-        return SCES_RET_INSTANCE_DUPLICATE;
+        return RET_VALUE_INSTANCE_DUPLICATE;
     }
 
-    diskio_table[disk_num] = *diskio;
+    _filex->media[disk_num].diskio = *diskio;
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Format a file system
@@ -496,57 +460,32 @@ scesRetVal_t sces_fs_set_diskio(uint32_t disk_num, const scesFileDiskIO_t* diski
 /// @param name   Name of the file system
 /// @param disk_num Disk number to format
 /// @param info   Information about the file system to format
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_fs_format(const char* name, uint32_t disk_num, const scesFsInfo_t* info)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_format(const char* name, uint32_t disk_num, const mediaState_t* info)
 {
-    SCES_MEDIA* media;
-    void* media_space;
-    diskInfo_t disk;
+    filexMediaStack_t* media = &_filex->media[disk_num];
 
-    scesFileDiskIO_t* diskio = search_diskio(disk_num);
-
-    if (diskio == NULL)
+    if (media->diskio.status == NULL)
     {
-        return SCES_RET_FS_DISK_NOT_READY;
+        return RET_VALUE_FS_DISK_NOT_READY;
     }
 
-    if (check_fs_feasibility(info, diskio) != SCES_RET_OK)
+    if (check_fs_feasibility(info, &media->diskio) != RET_VALUE_OK)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
-    media = (SCES_MEDIA*)mem_block_alloc(&fs_media);
+    memset(media->workspace, 0, MEDIA_WORK_SIZE);
 
-    if (media == NULL)
+    if (fx_media_format(&media->media, diskio_main, &media->diskio, media->workspace,
+                        MEDIA_WORK_SIZE, (CHAR*)name, info->num_of_fats, info->directory_entries, 0,
+                        media->diskio.sector_count(), media->diskio.sector_size(),
+                        info->sectors_per_cluster, 0, 0) != FX_SUCCESS)
     {
-        return SCES_RET_MEM_ALLOC_FAILURE;
+        return RET_VALUE_FS_FORMAT_FAILURE;
     }
 
-    media_space = mem_block_alloc(&fs_works);
-
-    if (media_space == NULL)
-    {
-        mem_block_free((uint8_t*)media);
-        return SCES_RET_MEM_ALLOC_FAILURE;
-    }
-
-    memset(media_space, 0, SCES_FS_WORK_STACK_SIZE);
-    disk.disk_num = disk_num;
-
-    if (fx_media_format(&media->media, diskio_main, &disk, media_space, SCES_FS_WORK_STACK_SIZE,
-                        (CHAR*)name, info->num_of_fats, info->directory_entries, 0,
-                        diskio->sector_count(), diskio->sector_size(), info->sectors_per_cluster, 0,
-                        0) != FX_SUCCESS)
-    {
-        mem_block_free((uint8_t*)media);
-        mem_block_free((uint8_t*)media_space);
-        return SCES_RET_FS_FORMAT_FAILURE;
-    }
-
-    mem_block_free((uint8_t*)media);
-    mem_block_free((uint8_t*)media_space);
-
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Mount a file system
@@ -554,104 +493,73 @@ scesRetVal_t sces_fs_format(const char* name, uint32_t disk_num, const scesFsInf
 /// @param name          Name of the file system
 /// @param disk_num      Disk number to mount
 /// @return Handle to the mounted file system, or NULL on failure
-scesFsHandle_t sces_fs_mount(const char* name, uint32_t disk_num)
+mediaHandle_t media_mount(const char* name, uint32_t disk_num)
 {
-    SCES_MEDIA* media;
-    void* media_space;
-    diskInfo_t disk;
+    filexMediaStack_t* media = &_filex->media[disk_num];
 
-    scesFileDiskIO_t* diskio = search_diskio(disk_num);
-
-    if (diskio == NULL)
-    {
-        return NULL;
-    }
-
-    media = (SCES_MEDIA*)mem_block_alloc(&fs_media);
-
-    if (media == NULL)
-    {
-        return NULL;
-    }
-
-    media_space = mem_block_alloc(&fs_works);
-
-    if (media_space == NULL)
-    {
-        mem_block_free((uint8_t*)media);
-        return NULL;
-    }
+    memset(&media->media, 0, sizeof(media->media));
+    memset(&media->mutex, 0, sizeof(media->mutex));
+    memset(media->workspace, 0, MEDIA_WORK_SIZE);
 
     if (tx_mutex_create(&media->mutex, "", TX_INHERIT) != TX_SUCCESS)
     {
-        mem_block_free((uint8_t*)media);
-        mem_block_free((uint8_t*)media_space);
         return NULL;
     }
 
-    disk.disk_num = disk_num;
-    memset(media_space, 0, SCES_FS_WORK_STACK_SIZE);
-
-    if (fx_media_open(&media->media, (CHAR*)name, diskio_main, &disk, media_space,
-                      SCES_FS_WORK_STACK_SIZE) != FX_SUCCESS)
+    if (fx_media_open(&media->media, (CHAR*)name, diskio_main, &media->diskio, media->workspace,
+                      MEDIA_WORK_SIZE) != FX_SUCCESS)
     {
         tx_mutex_delete(&media->mutex);
-        mem_block_free((uint8_t*)media);
-        mem_block_free((uint8_t*)media_space);
         return NULL;
     }
 
-    return (scesFsHandle_t)media;
+    return (mediaHandle_t)media;
 }
 
 /// @brief Unmount a file system
 /// @details This function unmounts the specified file system.
 /// @param fs Handle to the file system to unmount
-void sces_fs_unmount(scesFsHandle_t fs)
+void media_unmount(mediaHandle_t media)
 {
-    SCES_MEDIA* media = (SCES_MEDIA*)fs;
-    void* media_space = media->media.fx_media_memory_buffer;
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
 
-    fx_media_close(&media->media);
-    tx_mutex_delete(&media->mutex);
-
-    mem_block_free((uint8_t*)media);
-    mem_block_free((uint8_t*)media_space);
+    fx_media_close(&xmedia->media);
+    tx_mutex_delete(&xmedia->mutex);
 }
 
 /// @brief Get the name of the file system
 /// @details This function retrieves the name of the specified file system.
 /// @param fs Handle to the file system
 /// @return Pointer to the file system's name string
-const char* sces_fs_name(scesFsHandle_t fs)
+const char* media_name(mediaHandle_t media)
 {
-    SCES_MEDIA* media = (SCES_MEDIA*)fs;
-    return (const char*)media->media.fx_media_name;
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
+    return (const char*)xmedia->media.fx_media_name;
 }
 
 /// @brief Synchronize the file system
 /// @details This function synchronizes the specified file system, ensuring that all pending
 ///     changes are written to the underlying storage.
 /// @param fs Handle to the file system
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_fs_sync(scesFsHandle_t fs)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_sync(mediaHandle_t media)
 {
-    SCES_MEDIA* media = (SCES_MEDIA*)fs;
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
 
-    if (mutex_lock(&media->mutex) != SCES_RET_OK)
+    if (mutex_lock(&xmedia->mutex) != RET_VALUE_OK)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
-    if (fx_media_flush(&media->media) != FX_SUCCESS)
+    if (fx_media_flush(&xmedia->media) != FX_SUCCESS)
     {
-        mutex_unlock(&media->mutex);
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        mutex_unlock(&xmedia->mutex);
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
-    mutex_unlock(&media->mutex);
+    mutex_unlock(&xmedia->mutex);
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Create an empty file
@@ -659,49 +567,49 @@ scesRetVal_t sces_fs_sync(scesFsHandle_t fs)
 ///     If the file already exists, an error is returned.
 /// @param fs Handle to the file system
 /// @param path Path of the file to create
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_fs_create_file(scesFsHandle_t fs, const char* path)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_create_file(mediaHandle_t media, const char* path)
 {
-    SCES_MEDIA* media = (SCES_MEDIA*)fs;
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
 
-    if (mutex_lock(&media->mutex) != SCES_RET_OK)
+    if (mutex_lock(&xmedia->mutex) != RET_VALUE_OK)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
-    if (fx_file_create(&media->media, (CHAR*)path) != FX_SUCCESS)
+    if (fx_file_create(&xmedia->media, (CHAR*)path) != FX_SUCCESS)
     {
-        mutex_unlock(&media->mutex);
-        return SCES_RET_INSTANCE_CREATE_FAILURE;
+        mutex_unlock(&xmedia->mutex);
+        return RET_VALUE_INSTANCE_CREATE_FAILURE;
     }
 
-    mutex_unlock(&media->mutex);
-    return SCES_RET_OK;
+    mutex_unlock(&xmedia->mutex);
+    return RET_VALUE_OK;
 }
 
 /// @brief Remove a file
 /// @details Removes the file at the specified path.
 /// @param fs Handle to the file system
 /// @param path Path of the file to remove
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_fs_remove_file(scesFsHandle_t fs, const char* path)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_remove_file(mediaHandle_t media, const char* path)
 {
-    SCES_MEDIA* media = (SCES_MEDIA*)fs;
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
 
-    if (mutex_lock(&media->mutex) != SCES_RET_OK)
+    if (mutex_lock(&xmedia->mutex) != RET_VALUE_OK)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
-    if (fx_file_delete(&media->media, (CHAR*)path) != FX_SUCCESS)
+    if (fx_file_delete(&xmedia->media, (CHAR*)path) != FX_SUCCESS)
     {
-        mutex_unlock(&media->mutex);
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        mutex_unlock(&xmedia->mutex);
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
-    mutex_unlock(&media->mutex);
+    mutex_unlock(&xmedia->mutex);
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Create a directory
@@ -709,24 +617,24 @@ scesRetVal_t sces_fs_remove_file(scesFsHandle_t fs, const char* path)
 ///     If the directory already exists, an error is returned.
 /// @param fs   Handle to the file system
 /// @param path Path of the directory to create
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_fs_create_dir(scesFsHandle_t fs, const char* path)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_create_dir(mediaHandle_t media, const char* path)
 {
-    SCES_MEDIA* media = (SCES_MEDIA*)fs;
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
 
-    if (mutex_lock(&media->mutex) != SCES_RET_OK)
+    if (mutex_lock(&xmedia->mutex) != RET_VALUE_OK)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
-    if (fx_directory_create(&media->media, (CHAR*)path) != FX_SUCCESS)
+    if (fx_directory_create(&xmedia->media, (CHAR*)path) != FX_SUCCESS)
     {
-        mutex_unlock(&media->mutex);
-        return SCES_RET_INSTANCE_CREATE_FAILURE;
+        mutex_unlock(&xmedia->mutex);
+        return RET_VALUE_INSTANCE_CREATE_FAILURE;
     }
 
-    mutex_unlock(&media->mutex);
-    return SCES_RET_OK;
+    mutex_unlock(&xmedia->mutex);
+    return RET_VALUE_OK;
 }
 
 /// @brief Remove a directory
@@ -734,24 +642,24 @@ scesRetVal_t sces_fs_create_dir(scesFsHandle_t fs, const char* path)
 ///     The directory must be empty to be removed successfully.
 /// @param fs   Handle to the file system
 /// @param path Path of the directory to remove
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_fs_remove_dir(scesFsHandle_t fs, const char* path)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_remove_dir(mediaHandle_t media, const char* path)
 {
-    SCES_MEDIA* media = (SCES_MEDIA*)fs;
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
 
-    if (mutex_lock(&media->mutex) != SCES_RET_OK)
+    if (mutex_lock(&xmedia->mutex) != RET_VALUE_OK)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
-    if (fx_directory_delete(&media->media, (CHAR*)path) != FX_SUCCESS)
+    if (fx_directory_delete(&xmedia->media, (CHAR*)path) != FX_SUCCESS)
     {
-        mutex_unlock(&media->mutex);
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        mutex_unlock(&xmedia->mutex);
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
-    mutex_unlock(&media->mutex);
-    return SCES_RET_OK;
+    mutex_unlock(&xmedia->mutex);
+    return RET_VALUE_OK;
 }
 
 /// @brief  Move or rename a file or directory
@@ -762,41 +670,41 @@ scesRetVal_t sces_fs_remove_dir(scesFsHandle_t fs, const char* path)
 /// @param fs        Handle to the file system
 /// @param old_path  Current path of the file or directory
 /// @param new_path  New path of the file or directory
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_fs_move(scesFsHandle_t fs, const char* old_path, const char* new_path)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_entity_move(mediaHandle_t media, const char* old_path, const char* new_path)
 {
-    SCES_MEDIA* media   = (SCES_MEDIA*)fs;
-    UINT dir_test_value = fx_directory_name_test(&media->media, (CHAR*)old_path);
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
+    UINT dir_test_value       = fx_directory_name_test(&xmedia->media, (CHAR*)old_path);
 
-    if (mutex_lock(&media->mutex) != SCES_RET_OK)
+    if (mutex_lock(&xmedia->mutex) != RET_VALUE_OK)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
     if (dir_test_value == FX_SUCCESS)
     {
-        if (fx_directory_rename(&media->media, (CHAR*)old_path, (CHAR*)new_path) != FX_SUCCESS)
+        if (fx_directory_rename(&xmedia->media, (CHAR*)old_path, (CHAR*)new_path) != FX_SUCCESS)
         {
-            mutex_unlock(&media->mutex);
-            return SCES_RET_LOW_LEVEL_FAILURE;
+            mutex_unlock(&xmedia->mutex);
+            return RET_VALUE_LOW_LEVEL_FAILURE;
         }
     }
     else if (dir_test_value == FX_NOT_DIRECTORY)
     {
-        if (fx_file_rename(&media->media, (CHAR*)old_path, (CHAR*)new_path) != FX_SUCCESS)
+        if (fx_file_rename(&xmedia->media, (CHAR*)old_path, (CHAR*)new_path) != FX_SUCCESS)
         {
-            mutex_unlock(&media->mutex);
-            return SCES_RET_LOW_LEVEL_FAILURE;
+            mutex_unlock(&xmedia->mutex);
+            return RET_VALUE_LOW_LEVEL_FAILURE;
         }
     }
     else
     {
-        mutex_unlock(&media->mutex);
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        mutex_unlock(&xmedia->mutex);
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
-    mutex_unlock(&media->mutex);
-    return SCES_RET_OK;
+    mutex_unlock(&xmedia->mutex);
+    return RET_VALUE_OK;
 }
 
 /// @brief Get the state of a file or directory
@@ -804,35 +712,35 @@ scesRetVal_t sces_fs_move(scesFsHandle_t fs, const char* old_path, const char* n
 ///          path.
 /// @param fs    Handle to the file system
 /// @param path  Path of the file or directory
-/// @param state Pointer to a scesFileItemState_t structure to receive the state information
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_fs_item_state(scesFsHandle_t fs, const char* path, scesFileItemState_t* state)
+/// @param state Pointer to a mediaEntityState_t structure to receive the state information
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_entity_state(mediaHandle_t media, const char* path, mediaEntityState_t* state)
 {
-    SCES_MEDIA* media = (SCES_MEDIA*)fs;
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
 
     if (state == NULL)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
-    if (mutex_lock(&media->mutex) != SCES_RET_OK)
+    if (mutex_lock(&xmedia->mutex) != RET_VALUE_OK)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
     if (fx_directory_information_get(
-            &media->media, (CHAR*)path, &state->attributes, &state->size, &state->time_stamp.year,
+            &xmedia->media, (CHAR*)path, &state->attributes, &state->size, &state->time_stamp.year,
             &state->time_stamp.month, &state->time_stamp.day, &state->time_stamp.hour,
             &state->time_stamp.minute, &state->time_stamp.second) != FX_SUCCESS)
     {
-        mutex_unlock(&media->mutex);
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        mutex_unlock(&xmedia->mutex);
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
-    state->kind = (state->attributes & FX_DIRECTORY) ? SCES_FILE_DIR : SCES_FILE_FILE;
+    state->kind = (state->attributes & FX_DIRECTORY) ? MEDIA_ENTITY_DIR : MEDIA_ENTITY_FILE;
 
-    mutex_unlock(&media->mutex);
-    return SCES_RET_OK;
+    mutex_unlock(&xmedia->mutex);
+    return RET_VALUE_OK;
 }
 
 //===============================
@@ -841,65 +749,65 @@ scesRetVal_t sces_fs_item_state(scesFsHandle_t fs, const char* path, scesFileIte
 
 /// @brief Open a file
 /// @details This function opens a file at the specified path with the given mode.
-/// @param fs    Handle to the file system
+/// @param media Handle to the file system
 /// @param path  Path of the file to open
 /// @param mode  File open mode mask
 /// @return Handle to the opened file, or NULL on failure
-scesFileHandle_t sces_file_open(scesFsHandle_t fs, const char* path, scesFileOpenModeMask_t mode)
+mediaFileHandle_t media_file_open(mediaHandle_t media, const char* path, mediaFileOpenMode_t mode)
 {
     FX_FILE* file;
-    uint32_t fx_mode  = 0;
-    SCES_MEDIA* media = (SCES_MEDIA*)fs;
+    uint32_t fx_mode          = 0;
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
 
-    if (mode & SCES_FILE_READ)
+    if (mode & MEDIA_FILE_READ)
     {
         fx_mode |= FX_OPEN_FOR_READ;
     }
 
-    if ((mode & SCES_FILE_WRITE) || (mode & SCES_FILE_APPEND))
+    if ((mode & MEDIA_FILE_WRITE) || (mode & MEDIA_FILE_APPEND))
     {
         fx_mode |= FX_OPEN_FOR_WRITE;
     }
 
-    if (mutex_lock(&media->mutex) != SCES_RET_OK)
+    if (mutex_lock(&xmedia->mutex) != RET_VALUE_OK)
     {
         return NULL;
     }
 
-    file = (FX_FILE*)mem_block_alloc(&fs_items);
+    file = (FX_FILE*)mem_block_alloc(&_filex->entities.stack);
 
     if (file == NULL)
     {
-        mutex_unlock(&media->mutex);
+        mutex_unlock(&xmedia->mutex);
         return NULL;
     }
 
-    if (fx_file_open(&media->media, file, (CHAR*)path, fx_mode) != FX_SUCCESS)
+    if (fx_file_open(&xmedia->media, file, (CHAR*)path, fx_mode) != FX_SUCCESS)
     {
         mem_block_free((uint8_t*)file);
-        mutex_unlock(&media->mutex);
+        mutex_unlock(&xmedia->mutex);
         return NULL;
     }
 
-    if (mode & SCES_FILE_APPEND)
+    if (mode & MEDIA_FILE_APPEND)
     {
         if (fx_file_seek(file, file->fx_file_current_file_size) != FX_SUCCESS)
         {
             fx_file_close(file);
             mem_block_free((uint8_t*)file);
-            mutex_unlock(&media->mutex);
+            mutex_unlock(&xmedia->mutex);
             return NULL;
         }
     }
 
-    mutex_unlock(&media->mutex);
-    return (scesFileHandle_t)file;
+    mutex_unlock(&xmedia->mutex);
+    return (mediaFileHandle_t)file;
 }
 
 /// @brief Close a file
 /// @details This function closes the specified file and releases its resources.
 /// @param file Handle to the file to be closed
-void sces_file_close(scesFileHandle_t file)
+void media_file_close(mediaFileHandle_t file)
 {
     FX_FILE* fx_file = (FX_FILE*)file;
 
@@ -913,17 +821,17 @@ void sces_file_close(scesFileHandle_t file)
 /// @param buffer Pointer to the buffer to receive the data
 /// @param size   Number of bytes to read
 /// @param read_size Pointer to a variable to receive the number of bytes actually read
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_file_read(scesFileHandle_t file, void* buffer, uint32_t size, uint32_t* read_size)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_file_read(mediaFileHandle_t file, void* buffer, uint32_t size, uint32_t* read_size)
 {
     FX_FILE* fx_file = (FX_FILE*)file;
 
     if (fx_file_read(fx_file, buffer, size, read_size) != FX_SUCCESS)
     {
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Write data to a file
@@ -932,15 +840,15 @@ scesRetVal_t sces_file_read(scesFileHandle_t file, void* buffer, uint32_t size, 
 /// @param buffer Pointer to the buffer containing the data to write
 /// @param size   Number of bytes to write
 /// @param written_size Pointer to a variable to receive the number of bytes actually written
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_file_write(scesFileHandle_t file, const void* buffer, uint32_t size,
-                             uint32_t* written_size)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_file_write(mediaFileHandle_t file, const void* buffer, uint32_t size,
+                            uint32_t* written_size)
 {
     FX_FILE* fx_file = (FX_FILE*)file;
 
     if (fx_file_write(fx_file, (VOID*)buffer, size) != FX_SUCCESS)
     {
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
     if (written_size != NULL)
@@ -948,30 +856,30 @@ scesRetVal_t sces_file_write(scesFileHandle_t file, const void* buffer, uint32_t
         *written_size = size;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Seek to a position in a file
 /// @details This function sets the file position indicator for the specified file.
 /// @param file   Handle to the file
 /// @param offset Offset in bytes to seek
-/// @return SCES_RET_OK on success, error code otherwise
+/// @return RET_VALUE_OK on success, error code otherwise
 /// @note The offset must be within the range of a 32-bit unsigned integer due to FileX limitations.
-scesRetVal_t sces_file_seek(scesFileHandle_t file, uint64_t offset)
+RetValue_t media_file_seek(mediaFileHandle_t file, uint64_t offset)
 {
     FX_FILE* fx_file = (FX_FILE*)file;
 
     if (offset > UINT32_MAX)
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (fx_file_seek(fx_file, offset) != FX_SUCCESS)
     {
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Seek to a position in a file from the current position
@@ -979,10 +887,10 @@ scesRetVal_t sces_file_seek(scesFileHandle_t file, uint64_t offset)
 ///     relative to the current position.
 /// @param file   Handle to the file
 /// @param offset Offset in bytes to seek from the current position
-/// @return SCES_RET_OK on success, error code otherwise
+/// @return RET_VALUE_OK on success, error code otherwise
 /// @note The resulting position must be within the range of a 32-bit unsigned integer
 ///       due to FileX limitations.
-scesRetVal_t sces_file_seek_from_current(scesFileHandle_t file, uint64_t offset)
+RetValue_t media_file_seek_from_current(mediaFileHandle_t file, uint64_t offset)
 {
     FX_FILE* fx_file      = (FX_FILE*)file;
     uint64_t new_position = fx_file->fx_file_current_file_offset + offset;
@@ -990,21 +898,21 @@ scesRetVal_t sces_file_seek_from_current(scesFileHandle_t file, uint64_t offset)
     if ((fx_file->fx_file_current_file_offset >= UINT32_MAX) || (offset > UINT32_MAX) ||
         (new_position > UINT32_MAX))
     {
-        return SCES_RET_PARAM_ERR;
+        return RET_VALUE_PARAM_ERR;
     }
 
     if (fx_file_seek(fx_file, (uint32_t)new_position) != FX_SUCCESS)
     {
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Get the current position in a file
 /// @details This function retrieves the current file position indicator for the specified file.
 /// @param file Handle to the file
 /// @return Current position in bytes from the beginning of the file
-uint32_t sces_file_tell(scesFileHandle_t file)
+uint32_t media_file_tell(mediaFileHandle_t file)
 {
     FX_FILE* fx_file = (FX_FILE*)file;
     return fx_file->fx_file_current_file_offset;
@@ -1014,7 +922,7 @@ uint32_t sces_file_tell(scesFileHandle_t file)
 /// @details This function retrieves the size of the specified file in bytes.
 /// @param file Handle to the file
 /// @return Size of the file in bytes
-uint32_t sces_file_size(scesFileHandle_t file)
+uint32_t media_file_size(mediaFileHandle_t file)
 {
     FX_FILE* fx_file = (FX_FILE*)file;
     return fx_file->fx_file_current_file_size;
@@ -1023,34 +931,34 @@ uint32_t sces_file_size(scesFileHandle_t file)
 /// @brief Truncate a file to the current position
 /// @details This function truncates the specified file to the current file position.
 /// @param file Handle to the file
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_file_truncate(scesFileHandle_t file)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_file_truncate(mediaFileHandle_t file)
 {
     FX_FILE* fx_file = (FX_FILE*)file;
 
     if (fx_file_truncate(fx_file, fx_file->fx_file_current_file_offset) != FX_SUCCESS)
     {
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Synchronize a file
 /// @details This function synchronizes the specified file, ensuring that all pending changes
 ///     are written to the underlying storage.
 /// @param file Handle to the file
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_file_sync(scesFileHandle_t file)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_file_sync(mediaFileHandle_t file)
 {
     FX_FILE* fx_file = (FX_FILE*)file;
 
     if (fx_file_flush(fx_file) != FX_SUCCESS)
     {
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 //===============================
@@ -1062,21 +970,21 @@ scesRetVal_t sces_file_sync(scesFileHandle_t file)
 /// @param fs   Handle to the file system
 /// @param path Path of the directory to open
 /// @return Handle to the opened directory, or NULL on failure
-scesDirHandle_t sces_dir_open(scesFsHandle_t fs, const char* path)
+mediaDirHandle_t media_dir_open(mediaHandle_t media, const char* path)
 {
-    SCES_DIR* dir;
-    SCES_MEDIA* media = (SCES_MEDIA*)fs;
+    filexDir_t* dir;
+    filexMediaStack_t* xmedia = (filexMediaStack_t*)media;
 
-    if (mutex_lock(&media->mutex) != SCES_RET_OK)
+    if (mutex_lock(&xmedia->mutex) != RET_VALUE_OK)
     {
         return NULL;
     }
 
-    dir = (SCES_DIR*)mem_block_alloc(&fs_items);
+    dir = (filexDir_t*)mem_block_alloc(&_filex->entities.stack);
 
     if (dir == NULL)
     {
-        mutex_unlock(&media->mutex);
+        mutex_unlock(&xmedia->mutex);
         return NULL;
     }
 
@@ -1086,14 +994,14 @@ scesDirHandle_t sces_dir_open(scesFsHandle_t fs, const char* path)
     strncpy(dir->path, path, FX_MAX_LONG_NAME_LEN - 1);
     dir->path[FX_MAX_LONG_NAME_LEN - 1] = '\0';
 
-    mutex_unlock(&media->mutex);
-    return (scesDirHandle_t)dir;
+    mutex_unlock(&xmedia->mutex);
+    return (mediaDirHandle_t)dir;
 }
 
 /// @brief Close a directory
 /// @details This function closes the specified directory and releases its resources.
 /// @param dir Handle to the directory to be closed
-void sces_dir_close(scesDirHandle_t dir)
+void media_dir_close(mediaDirHandle_t dir)
 {
     mem_block_free((uint8_t*)dir);
 }
@@ -1101,17 +1009,17 @@ void sces_dir_close(scesDirHandle_t dir)
 /// @brief Get the next item in a directory
 /// @details This function retrieves the next item in the specified directory.
 /// @param dir   Handle to the directory
-/// @param state Pointer to a scesFileItemState_t structure to receive the item information
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_dir_next_item_state(scesDirHandle_t dir, scesFileItemState_t* state)
+/// @param state Pointer to a mediaEntityState_t structure to receive the item information
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_dir_next_item_state(mediaDirHandle_t dir, mediaEntityState_t* state)
 {
     CHAR* default_name;
     CHAR name[FX_MAX_LONG_NAME_LEN];
-    SCES_DIR* fx_dir = (SCES_DIR*)dir;
+    filexDir_t* fx_dir = (filexDir_t*)dir;
 
-    if (mutex_lock(&fx_dir->media->mutex) != SCES_RET_OK)
+    if (mutex_lock(&fx_dir->media->mutex) != RET_VALUE_OK)
     {
-        return SCES_RET_OS_MUTEX_ERR;
+        return RET_VALUE_OS_MUTEX_ERR;
     }
 
     if (fx_dir->entry_index == 0)
@@ -1119,7 +1027,7 @@ scesRetVal_t sces_dir_next_item_state(scesDirHandle_t dir, scesFileItemState_t* 
         if (fx_directory_default_set(&fx_dir->media->media, (CHAR*)fx_dir->path) != FX_SUCCESS)
         {
             mutex_unlock(&fx_dir->media->mutex);
-            return SCES_RET_LOW_LEVEL_FAILURE;
+            return RET_VALUE_LOW_LEVEL_FAILURE;
         }
 
         if (fx_directory_first_full_entry_find(&fx_dir->media->media, name, &state->attributes,
@@ -1129,21 +1037,21 @@ scesRetVal_t sces_dir_next_item_state(scesDirHandle_t dir, scesFileItemState_t* 
                                                &state->time_stamp.second) != FX_SUCCESS)
         {
             mutex_unlock(&fx_dir->media->mutex);
-            return SCES_RET_LOW_LEVEL_FAILURE;
+            return RET_VALUE_LOW_LEVEL_FAILURE;
         }
 
-        state->kind = (state->attributes & FX_DIRECTORY) ? SCES_FILE_DIR : SCES_FILE_FILE;
+        state->kind = (state->attributes & FX_DIRECTORY) ? MEDIA_ENTITY_DIR : MEDIA_ENTITY_FILE;
 
         fx_dir->entry_index = fx_dir->media->media.fx_media_directory_next_full_entry_finds;
         mutex_unlock(&fx_dir->media->mutex);
 
-        return SCES_RET_OK;
+        return RET_VALUE_OK;
     }
 
     if (fx_directory_default_get(&fx_dir->media->media, &default_name) != FX_SUCCESS)
     {
         mutex_unlock(&fx_dir->media->mutex);
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
     if (strncmp(fx_dir->path, default_name, FX_MAX_LONG_NAME_LEN) != 0)
@@ -1151,7 +1059,7 @@ scesRetVal_t sces_dir_next_item_state(scesDirHandle_t dir, scesFileItemState_t* 
         if (fx_directory_default_set(&fx_dir->media->media, (CHAR*)fx_dir->path) != FX_SUCCESS)
         {
             mutex_unlock(&fx_dir->media->mutex);
-            return SCES_RET_LOW_LEVEL_FAILURE;
+            return RET_VALUE_LOW_LEVEL_FAILURE;
         }
 
         fx_dir->media->media.fx_media_directory_next_full_entry_finds = fx_dir->entry_index;
@@ -1163,30 +1071,30 @@ scesRetVal_t sces_dir_next_item_state(scesDirHandle_t dir, scesFileItemState_t* 
             &state->time_stamp.minute, &state->time_stamp.second) != FX_SUCCESS)
     {
         mutex_unlock(&fx_dir->media->mutex);
-        return SCES_RET_LOW_LEVEL_FAILURE;
+        return RET_VALUE_LOW_LEVEL_FAILURE;
     }
 
-    state->kind = (state->attributes & FX_DIRECTORY) ? SCES_FILE_DIR : SCES_FILE_FILE;
+    state->kind = (state->attributes & FX_DIRECTORY) ? MEDIA_ENTITY_DIR : MEDIA_ENTITY_FILE;
 
     fx_dir->entry_index = fx_dir->media->media.fx_media_directory_next_full_entry_finds;
     mutex_unlock(&fx_dir->media->mutex);
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 /// @brief Rewind a directory
 /// @details This function rewinds the specified directory to the beginning.
 /// @param dir Handle to the directory
-/// @return SCES_RET_OK on success, error code otherwise
-scesRetVal_t sces_dir_rewind(scesDirHandle_t dir)
+/// @return RET_VALUE_OK on success, error code otherwise
+RetValue_t media_dir_rewind(mediaDirHandle_t dir)
 {
-    SCES_DIR* fx_dir = (SCES_DIR*)dir;
+    filexDir_t* fx_dir = (filexDir_t*)dir;
 
     fx_dir->entry_index = 0;
 
-    return SCES_RET_OK;
+    return RET_VALUE_OK;
 }
 
 #ifdef __cplusplus
 }
-#endif
+#endif // __cplusplus

@@ -74,13 +74,15 @@
 
 /// @brief OS stack definition
 /// @details This variable defines the byte pool used for the OS stack.
-#ifndef UPES_THREADX_OS_STACK_EX_MEM
-#define EXT1         static
-#define OS_STACK_MEM (_os_stack_mem)
-#else // UPES_THREADX_OS_STACK_EX_MEM
-#define EXT1         extern
-#define OS_STACK_MEM UPES_THREADX_OS_STACK_EX_MEM
-#endif // UPES_THREADX_OS_STACK_EX_MEM
+#if !defined(UPES_THREADX_OS_STACK_EX_MEM) || !defined(UPES_THREADX_OS_STACK_EX_MEM_SIZE)
+#define EXT1              static
+#define OS_STACK_MEM      (_os_stack_mem)
+#define OS_STACK_MEM_SIZE (align32up(sizeof(threadxStack_t)))
+#else // UPES_THREADX_OS_STACK_EX_MEM && UPES_THREADX_OS_STACK_EX_MEM_SIZE
+#define EXT1              extern
+#define OS_STACK_MEM      UPES_THREADX_OS_STACK_EX_MEM
+#define OS_STACK_MEM_SIZE (UPES_THREADX_OS_STACK_EX_MEM_SIZE)
+#endif // !defined(UPES_THREADX_OS_STACK_EX_MEM) || !defined(UPES_THREADX_OS_STACK_EX_MEM_SIZE)
 
 /// @brief OS memory pool definition
 /// @details This section defines the memory used for the OS memory pool.
@@ -99,6 +101,11 @@
 /// @brief OS stack size
 /// @details This constant defines the size (in bytes) of the OS stack.
 #define OS_STACK_SIZE (UPES_THREADX_OS_STACK_SIZE)
+
+/// @brief Required size of the OS stack
+/// @details This constant defines the required size (in bytes) of the OS stack, calculated as the
+/// aligned size of the threadxStack_t structure.
+#define OS_STACK_REQUIRED_SIZE (align32up(sizeof(threadxStack_t)))
 
 /// @brief OS memory pool indices
 /// @details These constants define the indices for the OS memory pools.
@@ -122,33 +129,42 @@
     (OS_MEM_POOL_MEM1_SIZE + OS_MEM_POOL_MEM2_SIZE + OS_MEM_POOL_MEM3_SIZE + OS_MEM_POOL_MEM4_SIZE)
 
 /// @brief ThreadX control block
-/// @details This structure holds the state, stack, and stack memory for the ThreadX OS.
+/// @details This structure holds the state and stack for the ThreadX OS.
 typedef struct
 {
     osState_t state;
     TX_BYTE_POOL stack;
-    uint8_t* stack_mem;
-    osMemPoolHandle_t mem_pool[OS_MEM_POOL_MAX];
-    uint8_t* mem_pool_mem;
-} ThreadxControlBlock_t;
+    uint8_t stack_mem[OS_STACK_SIZE];
+} threadxControlBlock_t;
+
+/// @brief ThreadX memory pool control block
+/// @details This structure holds the memory pool and its associated memory for the ThreadX OS.
+typedef struct
+{
+    TX_BLOCK_POOL stack;
+    uint8_t* mem;
+} threadxMemPoolControlBlock_t;
+
+/// @brief ThreadX stack structure
+/// @details This structure holds the control block, memory pool control blocks, and stack memory
+/// for the ThreadX OS.
+typedef struct
+{
+    threadxControlBlock_t os;
+    threadxMemPoolControlBlock_t mem_pool[OS_MEM_POOL_MAX];
+} threadxStack_t;
 
 /// @brief OS stack memory
 /// @details This array defines the memory used for the OS stack.
-EXT1 uint8_t OS_STACK_MEM[OS_STACK_SIZE];
+EXT1 uint8_t OS_STACK_MEM[OS_STACK_REQUIRED_SIZE];
 
 /// @brief OS memory pool memory
 /// @details This array defines the memory used for the OS memory pool.
 EXT2 uint8_t OS_MEM_POOL_MEM[OS_MEM_POOL_SIZE];
 
-/// @brief ThreadX control block instance
-/// @details This variable holds the instance of the ThreadX control block.
-static ThreadxControlBlock_t _os = {
-    .state        = OS_STATE_INITIALIZING,
-    .stack        = { 0 },
-    .stack_mem    = OS_STACK_MEM,
-    .mem_pool     = { NULL, NULL, NULL, NULL },
-    .mem_pool_mem = OS_MEM_POOL_MEM
-};
+/// @brief ThreadX stack instance
+/// @details This static pointer points to the instance of the ThreadX stack structure.
+static threadxStack_t* _threadx = (threadxStack_t*)OS_STACK_MEM;
 
 /// @brief Allocate memory from the OS stack byte pool
 /// @details This function allocates a block of memory of the specified size
@@ -170,7 +186,7 @@ static uint8_t* _mem_alloc(uint32_t size)
         alloc_size = TX_BYTE_BLOCK_MIN;
     }
 
-    if (tx_byte_allocate(&_os.stack, (VOID**)&mem, alloc_size, TX_NO_WAIT) != TX_SUCCESS)
+    if (tx_byte_allocate(&_threadx->os.stack, (VOID**)&mem, alloc_size, TX_NO_WAIT) != TX_SUCCESS)
     {
         return NULL;
     }
@@ -249,21 +265,23 @@ static osTaskPriority_t _convert_threadx_task_priority(UINT threadx_priority)
 /// @return RET_VALUE_OK on success, error code otherwise
 RetValue_t os_initialize(void)
 {
-    if (OS_STACK_SIZE < TX_BYTE_POOL_MIN)
+    if (OS_STACK_SIZE < OS_STACK_REQUIRED_SIZE)
     {
-        _os.state = OS_STATE_ERR_INIT_MEM;
-        return RET_VALUE_PARAM_ERR;
+        return RET_VALUE_MEM_ALLOC_FAILURE;
     }
 
-    memset(_os.stack_mem, 0, OS_STACK_SIZE);
+    memset(_threadx, 0, sizeof(*_threadx));
 
-    if (tx_byte_pool_create(&_os.stack, "OS Stack", _os.stack_mem, OS_STACK_SIZE) != TX_SUCCESS)
+    _threadx->os.state = OS_STATE_INITIALIZING;
+
+    if (tx_byte_pool_create(&_threadx->os.stack, "OS Stack", _threadx->os.stack_mem,
+                            OS_STACK_SIZE) != TX_SUCCESS)
     {
-        _os.state = OS_STATE_ERR_INIT_MEM;
+        _threadx->os.state = OS_STATE_ERR_INIT_MEM;
         return RET_VALUE_OS_MEM_POOL_ERR;
     }
 
-    _os.state = OS_STATE_RUNNING;
+    _threadx->os.state = OS_STATE_RUNNING;
     return RET_VALUE_OK;
 }
 
@@ -273,15 +291,18 @@ RetValue_t os_initialize(void)
 /// @return RET_VALUE_OK on success, error code otherwise
 RetValue_t os_initialize_mem_pool(void)
 {
+    threadxMemPoolControlBlock_t* mem_pool = NULL;
+
+    memset(OS_MEM_POOL_MEM, 0, OS_MEM_POOL_SIZE);
+
 #if OS_MEM_POOL_MEM1_SIZE != 0
 
-    uint8_t* mem_pool_mem1 = _os.mem_pool_mem;
-    memset(mem_pool_mem1, 0, OS_MEM_POOL_MEM1_SIZE);
+    mem_pool      = &_threadx->mem_pool[OS_MEM_POOL_1];
+    mem_pool->mem = OS_MEM_POOL_MEM;
 
-    _os.mem_pool[OS_MEM_POOL_1] =
-        os_mem_pool_create_static("OS MemPool 1", mem_pool_mem1, UPES_THREADX_OS_MEM_POOL_BKSZ_1,
-                                  UPES_THREADX_OS_MEM_POOL_BKCT_1);
-    if (_os.mem_pool[OS_MEM_POOL_1] == NULL)
+    if (os_mem_pool_create_static("OS MemPool 1", &mem_pool->stack, sizeof(mem_pool->stack),
+                                  mem_pool->mem, UPES_THREADX_OS_MEM_POOL_BKSZ_1,
+                                  UPES_THREADX_OS_MEM_POOL_BKCT_1) == NULL)
     {
         return RET_VALUE_OS_MEM_POOL_ERR;
     }
@@ -290,13 +311,12 @@ RetValue_t os_initialize_mem_pool(void)
 
 #if OS_MEM_POOL_MEM2_SIZE != 0
 
-    uint8_t* mem_pool_mem2 = _os.mem_pool_mem + OS_MEM_POOL_MEM1_SIZE;
-    memset(mem_pool_mem2, 0, OS_MEM_POOL_MEM2_SIZE);
+    mem_pool      = &_threadx->mem_pool[OS_MEM_POOL_2];
+    mem_pool->mem = OS_MEM_POOL_MEM + OS_MEM_POOL_MEM1_SIZE;
 
-    _os.mem_pool[OS_MEM_POOL_2] =
-        os_mem_pool_create_static("OS MemPool 2", mem_pool_mem2, UPES_THREADX_OS_MEM_POOL_BKSZ_2,
-                                  UPES_THREADX_OS_MEM_POOL_BKCT_2);
-    if (_os.mem_pool[OS_MEM_POOL_2] == NULL)
+    if (os_mem_pool_create_static("OS MemPool 2", &mem_pool->stack, sizeof(mem_pool->stack),
+                                  mem_pool->mem, UPES_THREADX_OS_MEM_POOL_BKSZ_2,
+                                  UPES_THREADX_OS_MEM_POOL_BKCT_2) == NULL)
     {
         return RET_VALUE_OS_MEM_POOL_ERR;
     }
@@ -305,13 +325,12 @@ RetValue_t os_initialize_mem_pool(void)
 
 #if OS_MEM_POOL_MEM3_SIZE != 0
 
-    uint8_t* mem_pool_mem3 = _os.mem_pool_mem + OS_MEM_POOL_MEM1_SIZE + OS_MEM_POOL_MEM2_SIZE;
-    memset(mem_pool_mem3, 0, OS_MEM_POOL_MEM3_SIZE);
+    mem_pool      = &_threadx->mem_pool[OS_MEM_POOL_3];
+    mem_pool->mem = OS_MEM_POOL_MEM + OS_MEM_POOL_MEM1_SIZE + OS_MEM_POOL_MEM2_SIZE;
 
-    _os.mem_pool[OS_MEM_POOL_3] =
-        os_mem_pool_create_static("OS MemPool 3", mem_pool_mem3, UPES_THREADX_OS_MEM_POOL_BKSZ_3,
-                                  UPES_THREADX_OS_MEM_POOL_BKCT_3);
-    if (_os.mem_pool[OS_MEM_POOL_3] == NULL)
+    if (os_mem_pool_create_static("OS MemPool 3", &mem_pool->stack, sizeof(mem_pool->stack),
+                                  mem_pool->mem, UPES_THREADX_OS_MEM_POOL_BKSZ_3,
+                                  UPES_THREADX_OS_MEM_POOL_BKCT_3) == NULL)
     {
         return RET_VALUE_OS_MEM_POOL_ERR;
     }
@@ -320,14 +339,13 @@ RetValue_t os_initialize_mem_pool(void)
 
 #if OS_MEM_POOL_MEM4_SIZE != 0
 
-    uint8_t* mem_pool_mem4 =
-        _os.mem_pool_mem + OS_MEM_POOL_MEM1_SIZE + OS_MEM_POOL_MEM2_SIZE + OS_MEM_POOL_MEM3_SIZE;
-    memset(mem_pool_mem4, 0, OS_MEM_POOL_MEM4_SIZE);
+    mem_pool = &_threadx->mem_pool[OS_MEM_POOL_4];
+    mem_pool->mem =
+        OS_MEM_POOL_MEM + OS_MEM_POOL_MEM1_SIZE + OS_MEM_POOL_MEM2_SIZE + OS_MEM_POOL_MEM3_SIZE;
 
-    _os.mem_pool[OS_MEM_POOL_4] =
-        os_mem_pool_create_static("OS MemPool 4", mem_pool_mem4, UPES_THREADX_OS_MEM_POOL_BKSZ_4,
-                                  UPES_THREADX_OS_MEM_POOL_BKCT_4);
-    if (_os.mem_pool[OS_MEM_POOL_4] == NULL)
+    if (os_mem_pool_create_static("OS MemPool 4", &mem_pool->stack, sizeof(mem_pool->stack),
+                                  mem_pool->mem, UPES_THREADX_OS_MEM_POOL_BKSZ_4,
+                                  UPES_THREADX_OS_MEM_POOL_BKCT_4) == NULL)
     {
         return RET_VALUE_OS_MEM_POOL_ERR;
     }
@@ -341,7 +359,7 @@ RetValue_t os_initialize_mem_pool(void)
 /// @return Current OS state
 osState_t os_state(void)
 {
-    return _os.state;
+    return _threadx->os.state;
 }
 
 /// @brief Get the current OS tick count
@@ -440,21 +458,25 @@ void* os_malloc(uint32_t size)
 {
     void* mem = NULL;
 
-    if ((_os.mem_pool[OS_MEM_POOL_1] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_1))
+    if ((_threadx->mem_pool[OS_MEM_POOL_1].mem != NULL) &&
+        (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_1))
     {
-        mem = os_mem_pool_alloc(_os.mem_pool[OS_MEM_POOL_1], size);
+        mem = os_mem_pool_alloc(&_threadx->mem_pool[OS_MEM_POOL_1].stack, size);
     }
-    else if ((_os.mem_pool[OS_MEM_POOL_2] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_2))
+    else if ((_threadx->mem_pool[OS_MEM_POOL_2].mem != NULL) &&
+             (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_2))
     {
-        mem = os_mem_pool_alloc(_os.mem_pool[OS_MEM_POOL_2], size);
+        mem = os_mem_pool_alloc(&_threadx->mem_pool[OS_MEM_POOL_2].stack, size);
     }
-    else if ((_os.mem_pool[OS_MEM_POOL_3] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_3))
+    else if ((_threadx->mem_pool[OS_MEM_POOL_3].mem != NULL) &&
+             (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_3))
     {
-        mem = os_mem_pool_alloc(_os.mem_pool[OS_MEM_POOL_3], size);
+        mem = os_mem_pool_alloc(&_threadx->mem_pool[OS_MEM_POOL_3].stack, size);
     }
-    else if ((_os.mem_pool[OS_MEM_POOL_4] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_4))
+    else if ((_threadx->mem_pool[OS_MEM_POOL_4].mem != NULL) &&
+             (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_4))
     {
-        mem = os_mem_pool_alloc(_os.mem_pool[OS_MEM_POOL_4], size);
+        mem = os_mem_pool_alloc(&_threadx->mem_pool[OS_MEM_POOL_4].stack, size);
     }
 
     return mem;
@@ -468,21 +490,25 @@ void os_free(void* mem, uint32_t size)
 {
     if (mem != NULL)
     {
-        if ((_os.mem_pool[OS_MEM_POOL_1] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_1))
+        if ((_threadx->mem_pool[OS_MEM_POOL_1].mem != NULL) &&
+            (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_1))
         {
-            os_mem_pool_free(_os.mem_pool[OS_MEM_POOL_1], mem);
+            os_mem_pool_free(&_threadx->mem_pool[OS_MEM_POOL_1].stack, mem);
         }
-        else if ((_os.mem_pool[OS_MEM_POOL_2] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_2))
+        else if ((_threadx->mem_pool[OS_MEM_POOL_2].mem != NULL) &&
+                 (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_2))
         {
-            os_mem_pool_free(_os.mem_pool[OS_MEM_POOL_2], mem);
+            os_mem_pool_free(&_threadx->mem_pool[OS_MEM_POOL_2].stack, mem);
         }
-        else if ((_os.mem_pool[OS_MEM_POOL_3] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_3))
+        else if ((_threadx->mem_pool[OS_MEM_POOL_3].mem != NULL) &&
+                 (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_3))
         {
-            os_mem_pool_free(_os.mem_pool[OS_MEM_POOL_3], mem);
+            os_mem_pool_free(&_threadx->mem_pool[OS_MEM_POOL_3].stack, mem);
         }
-        else if ((_os.mem_pool[OS_MEM_POOL_4] != NULL) && (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_4))
+        else if ((_threadx->mem_pool[OS_MEM_POOL_4].mem != NULL) &&
+                 (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_4))
         {
-            os_mem_pool_free(_os.mem_pool[OS_MEM_POOL_4], mem);
+            os_mem_pool_free(&_threadx->mem_pool[OS_MEM_POOL_4].stack, mem);
         }
     }
 }
@@ -987,26 +1013,19 @@ osMemPoolHandle_t os_mem_pool_create(const char* name, uint32_t block_size, uint
 /// @param block_size  Size of each memory block in bytes
 /// @param block_count Number of memory blocks in the pool
 /// @return Handle to the created memory pool or NULL on failure
-osMemPoolHandle_t os_mem_pool_create_static(const char* name, uint8_t* pool_buffer,
-                                            uint32_t block_size, uint32_t block_count)
+osMemPoolHandle_t os_mem_pool_create_static(const char* name, void* pool, uint32_t pool_size,
+                                            uint8_t* pool_mem, uint32_t block_size,
+                                            uint32_t block_count)
 {
-    if ((pool_buffer == NULL) || (block_size == 0) || (block_size % sizeof(ULONG) != 0) ||
-        (block_count == 0))
+    if ((pool == NULL) || (pool_size < sizeof(TX_BLOCK_POOL)) || (pool_mem == NULL) ||
+        (block_size == 0) || (block_size % sizeof(ULONG) != 0) || (block_count == 0))
     {
         return NULL;
     }
 
-    TX_BLOCK_POOL* pool = (TX_BLOCK_POOL*)_mem_alloc(sizeof(TX_BLOCK_POOL));
-
-    if (pool == NULL)
-    {
-        return NULL;
-    }
-
-    if (tx_block_pool_create(pool, (CHAR*)name, block_size, (VOID*)pool_buffer,
+    if (tx_block_pool_create((TX_BLOCK_POOL*)pool, (CHAR*)name, block_size, (VOID*)pool_mem,
                              block_size * block_count) != TX_SUCCESS)
     {
-        _mem_free((uint8_t*)pool);
         return NULL;
     }
 
@@ -1036,7 +1055,6 @@ void os_mem_pool_delete_static(osMemPoolHandle_t pool)
     if ((pool != NULL) && (((TX_BLOCK_POOL*)pool)->tx_block_pool_id != TX_BLOCK_POOL_ID))
     {
         tx_block_pool_delete((TX_BLOCK_POOL*)pool);
-        _mem_free((uint8_t*)pool);
     }
 }
 

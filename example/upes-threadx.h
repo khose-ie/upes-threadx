@@ -1,5 +1,19 @@
+/// @file upes-threadx.h
+/// @brief UPES Configuration Header Example for OS Abstraction Layer
+/// @details This is an example configuration header file for the UPES OS abstraction layer.
+///          It defines constants and macros that can be modified to customize the behavior
+///          of the OS abstraction layer according to the specific requirements of the target
+///          application and underlying operating system.
+/// @note This file should be copied and renamed to upes-threadx.h and modified as needed.
+/// @author Khose-ie<khose-ie@outlook.com>
+/// @date 2026-05-14
+
 #ifndef _UPES_THREADX_H_
 #define _UPES_THREADX_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
 
 //============================================================================================
 /// @brief OS Stack Configuration
@@ -25,6 +39,12 @@
 /// memory zone.
 /// @note If you don't define @ref UPES_THREADX_OS_STACK_SIZE, this macro will be ignored.
 // #define UPES_THREADX_OS_STACK_EX_MEM (_os_stack_mem)
+
+/// @brief Size of the external OS stack memory zone
+/// @details This constant defines the size (in bytes) of the external memory zone
+///          allocated for the OS stack byte pool. It is set to the OS stack size
+///          plus an additional 1024 bytes to accommodate management overhead.
+// #define UPES_THREADX_OS_STACK_EX_MEM_SIZE (UPES_THREADX_OS_STACK_SIZE + 512)
 
 //============================================================================================
 /// @brief OS Memory Pool Configuration
@@ -80,5 +100,9 @@
 /// memory pool memory zone.
 /// @note The defined memory zone should be large enough to accommodate all memory pool blocks.
 // #define UPES_THREADX_OS_MEM_POOL_EX_MEM (_os_mem_pool_mem)
+
+#ifdef __cplusplus
+}
+#endif // __cplusplus
 
 #endif // _UPES_THREADX_H_
