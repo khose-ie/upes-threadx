@@ -20,8 +20,8 @@ project(${CMAKE_PROJECT_NAME})
 add_library(${CMAKE_PROJECT_NAME} STATIC)
 
 # Add all sub directories
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE sam-filex.c)
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE sam-threadx.c)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE source/sam-filex.c)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE source/sam-threadx.c)
 
 # Add self include path
 target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
