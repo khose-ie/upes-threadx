@@ -1,12 +1,14 @@
 /// @file    threadx.c
-/// @brief   UPES OS abstraction layer implementation for ThreadX.
-/// @details This source file provides the implementation of the UPES OS abstraction layer
+/// @brief   SAM OS abstraction layer implementation for ThreadX.
+/// @details This source file provides the implementation of the SAM OS abstraction layer
 ///          using the ThreadX RTOS as the underlying operating system. It includes functions
 ///          for task management, event handling, message queues, memory pools, mutexes,
 ///          semaphores, and timers.
 /// @author  Khose-ie<khose-ie@outlook.com>
 /// @date    2024-06-10
 
+#include <sam-os.h>
+#include <sam-threadx.h>
 #include <stdlib.h>
 #include <tx_api.h>
 #include <tx_block_pool.h>
@@ -17,82 +19,80 @@
 #include <tx_semaphore.h>
 #include <tx_thread.h>
 #include <tx_timer.h>
-#include <upes-os.h>
-#include <upes-threadx.h>
 
-#ifndef UPES_THREADX_OS_STACK_SIZE
-#define UPES_THREADX_OS_STACK_SIZE (1024 * 60)
-#endif // UPES_THREADX_OS_STACK_SIZE
+#ifndef SAM_TX_OS_STACK_SIZE
+#define SAM_TX_OS_STACK_SIZE (1024 * 60)
+#endif // SAM_TX_OS_STACK_SIZE
 
 /// @brief Size of the OS memory pool 1 blocks
 /// @details This constant defines the size (in bytes) of each memory block
-#ifndef UPES_THREADX_OS_MEM_POOL_BKSZ_1
-#define UPES_THREADX_OS_MEM_POOL_BKSZ_1 (0)
-#endif // UPES_THREADX_OS_MEM_POOL_BKSZ_1
+#ifndef SAM_TX_OS_MEM_POOL_BKSZ_1
+#define SAM_TX_OS_MEM_POOL_BKSZ_1 (0)
+#endif // SAM_TX_OS_MEM_POOL_BKSZ_1
 
 /// @brief Count of the OS memory pool 1 blocks
 /// @details This constant defines the number of memory blocks in the OS memory pool 1.
-#ifndef UPES_THREADX_OS_MEM_POOL_BKCT_1
-#define UPES_THREADX_OS_MEM_POOL_BKCT_1 (0)
-#endif // UPES_THREADX_OS_MEM_POOL_BKCT_1
+#ifndef SAM_TX_OS_MEM_POOL_BKCT_1
+#define SAM_TX_OS_MEM_POOL_BKCT_1 (0)
+#endif // SAM_TX_OS_MEM_POOL_BKCT_1
 
 /// @brief Size of the OS memory pool 2 blocks
 /// @details This constant defines the size (in bytes) of each memory block
-#ifndef UPES_THREADX_OS_MEM_POOL_BKSZ_2
-#define UPES_THREADX_OS_MEM_POOL_BKSZ_2 (0)
-#endif // UPES_THREADX_OS_MEM_POOL_BKSZ_2
+#ifndef SAM_TX_OS_MEM_POOL_BKSZ_2
+#define SAM_TX_OS_MEM_POOL_BKSZ_2 (0)
+#endif // SAM_TX_OS_MEM_POOL_BKSZ_2
 
 /// @brief Count of the OS memory pool 2 blocks
 /// @details This constant defines the number of memory blocks in the OS memory pool 2.
-#ifndef UPES_THREADX_OS_MEM_POOL_BKCT_2
-#define UPES_THREADX_OS_MEM_POOL_BKCT_2 (0)
-#endif // UPES_THREADX_OS_MEM_POOL_BKCT_2
+#ifndef SAM_TX_OS_MEM_POOL_BKCT_2
+#define SAM_TX_OS_MEM_POOL_BKCT_2 (0)
+#endif // SAM_TX_OS_MEM_POOL_BKCT_2
 
 /// @brief Size of the OS memory pool 3 blocks
 /// @details This constant defines the size (in bytes) of each memory block
-#ifndef UPES_THREADX_OS_MEM_POOL_BKSZ_3
-#define UPES_THREADX_OS_MEM_POOL_BKSZ_3 (0)
-#endif // UPES_THREADX_OS_MEM_POOL_BKSZ_3
+#ifndef SAM_TX_OS_MEM_POOL_BKSZ_3
+#define SAM_TX_OS_MEM_POOL_BKSZ_3 (0)
+#endif // SAM_TX_OS_MEM_POOL_BKSZ_3
 
 /// @brief Count of the OS memory pool 3 blocks
 /// @details This constant defines the number of memory blocks in the OS memory pool 3.
-#ifndef UPES_THREADX_OS_MEM_POOL_BKCT_3
-#define UPES_THREADX_OS_MEM_POOL_BKCT_3 (0)
-#endif // UPES_THREADX_OS_MEM_POOL_BKCT_3
+#ifndef SAM_TX_OS_MEM_POOL_BKCT_3
+#define SAM_TX_OS_MEM_POOL_BKCT_3 (0)
+#endif // SAM_TX_OS_MEM_POOL_BKCT_3
 
 /// @brief Size of the OS memory pool 4 blocks
 /// @details This constant defines the size (in bytes) of each memory block
-#ifndef UPES_THREADX_OS_MEM_POOL_BKSZ_4
-#define UPES_THREADX_OS_MEM_POOL_BKSZ_4 (0)
-#endif // UPES_THREADX_OS_MEM_POOL_BKSZ_4
+#ifndef SAM_TX_OS_MEM_POOL_BKSZ_4
+#define SAM_TX_OS_MEM_POOL_BKSZ_4 (0)
+#endif // SAM_TX_OS_MEM_POOL_BKSZ_4
 
 /// @brief Count of the OS memory pool 4 blocks
 /// @details This constant defines the number of memory blocks in the OS memory pool 4.
-#ifndef UPES_THREADX_OS_MEM_POOL_BKCT_4
-#define UPES_THREADX_OS_MEM_POOL_BKCT_4 (0)
-#endif // UPES_THREADX_OS_MEM_POOL_BKCT_4
+#ifndef SAM_TX_OS_MEM_POOL_BKCT_4
+#define SAM_TX_OS_MEM_POOL_BKCT_4 (0)
+#endif // SAM_TX_OS_MEM_POOL_BKCT_4
 
 /// @brief OS stack definition
 /// @details This variable defines the byte pool used for the OS stack.
-#if !defined(UPES_THREADX_OS_STACK_EX_MEM) || !defined(UPES_THREADX_OS_STACK_EX_MEM_SIZE)
+#if !defined(SAM_TX_OS_STACK_EX_MEM) || !defined(SAM_TX_OS_STACK_EX_MEM_SIZE)
 #define EXT1              static
 #define OS_STACK_MEM      (_os_stack_mem)
 #define OS_STACK_MEM_SIZE (align32up(sizeof(threadxStack_t)))
-#else // UPES_THREADX_OS_STACK_EX_MEM && UPES_THREADX_OS_STACK_EX_MEM_SIZE
+#else // SAM_TX_OS_STACK_EX_MEM && SAM_TX_OS_STACK_EX_MEM_SIZE
 #define EXT1              extern
-#define OS_STACK_MEM      UPES_THREADX_OS_STACK_EX_MEM
-#define OS_STACK_MEM_SIZE (UPES_THREADX_OS_STACK_EX_MEM_SIZE)
-#endif // !defined(UPES_THREADX_OS_STACK_EX_MEM) || !defined(UPES_THREADX_OS_STACK_EX_MEM_SIZE)
+#define OS_STACK_MEM      SAM_TX_OS_STACK_EX_MEM
+#define OS_STACK_MEM_SIZE (SAM_TX_OS_STACK_EX_MEM_SIZE)
+#endif // !defined(SAM_TX_OS_STACK_EX_MEM) || !defined(SAM_TX_OS_STACK_EX_MEM_SIZE)
 
 /// @brief OS memory pool definition
 /// @details This section defines the memory used for the OS memory pool.
-#ifndef UPES_THREADX_OS_MEM_POOL_EX_MEM
+#ifndef SAM_TX_OS_MEM_POOL_EX_MEM
 #define EXT2            static
 #define OS_MEM_POOL_MEM (_os_mem_pool_mem)
-#else // UPES_THREADX_OS_MEM_POOL_EX_MEM
+#else // SAM_TX_OS_MEM_POOL_EX_MEM
 #define EXT2            extern
-#define OS_MEM_POOL_MEM UPES_THREADX_OS_MEM_POOL_EX_MEM
-#endif // UPES_THREADX_OS_MEM_POOL_EX_MEM
+#define OS_MEM_POOL_MEM SAM_TX_OS_MEM_POOL_EX_MEM
+#endif // SAM_TX_OS_MEM_POOL_EX_MEM
 
 /// @brief Default time slice for tasks
 /// @details This constant defines the default time slice (in ticks) for tasks.
@@ -100,7 +100,7 @@
 
 /// @brief OS stack size
 /// @details This constant defines the size (in bytes) of the OS stack.
-#define OS_STACK_SIZE (UPES_THREADX_OS_STACK_SIZE)
+#define OS_STACK_SIZE (SAM_TX_OS_STACK_SIZE)
 
 /// @brief Required size of the OS stack
 /// @details This constant defines the required size (in bytes) of the OS stack, calculated as the
@@ -117,10 +117,10 @@
 
 /// @brief Sizes of individual OS memory pools
 /// @details These constants define the sizes (in bytes) of each individual OS memory pool.
-#define OS_MEM_POOL_MEM1_SIZE (UPES_THREADX_OS_MEM_POOL_BKSZ_1 * UPES_THREADX_OS_MEM_POOL_BKCT_1)
-#define OS_MEM_POOL_MEM2_SIZE (UPES_THREADX_OS_MEM_POOL_BKSZ_2 * UPES_THREADX_OS_MEM_POOL_BKCT_2)
-#define OS_MEM_POOL_MEM3_SIZE (UPES_THREADX_OS_MEM_POOL_BKSZ_3 * UPES_THREADX_OS_MEM_POOL_BKCT_3)
-#define OS_MEM_POOL_MEM4_SIZE (UPES_THREADX_OS_MEM_POOL_BKSZ_4 * UPES_THREADX_OS_MEM_POOL_BKCT_4)
+#define OS_MEM_POOL_MEM1_SIZE (SAM_TX_OS_MEM_POOL_BKSZ_1 * SAM_TX_OS_MEM_POOL_BKCT_1)
+#define OS_MEM_POOL_MEM2_SIZE (SAM_TX_OS_MEM_POOL_BKSZ_2 * SAM_TX_OS_MEM_POOL_BKCT_2)
+#define OS_MEM_POOL_MEM3_SIZE (SAM_TX_OS_MEM_POOL_BKSZ_3 * SAM_TX_OS_MEM_POOL_BKCT_3)
+#define OS_MEM_POOL_MEM4_SIZE (SAM_TX_OS_MEM_POOL_BKSZ_4 * SAM_TX_OS_MEM_POOL_BKCT_4)
 
 /// @brief Total size of the OS memory pool
 /// @details This constant defines the total size (in bytes) of the OS memory pool, calculated as
@@ -206,9 +206,9 @@ static void _mem_free(uint8_t* mem)
     }
 }
 
-/// @brief Convert ThreadX task state to UPES task state
+/// @brief Convert ThreadX task state to SAM task state
 /// @param threadx_state ThreadX task state
-/// @return Corresponding UPES task state
+/// @return Corresponding SAM task state
 static osTaskState_t _convert_threadx_task_state(UINT threadx_state)
 {
     osTaskState_t converted_state;
@@ -246,9 +246,9 @@ static osTaskState_t _convert_threadx_task_state(UINT threadx_state)
     return converted_state;
 }
 
-/// @brief Convert ThreadX task priority to UPES task priority
+/// @brief Convert ThreadX task priority to SAM task priority
 /// @param threadx_priority ThreadX task priority
-/// @return Corresponding UPES task priority
+/// @return Corresponding SAM task priority
 static osTaskPriority_t _convert_threadx_task_priority(UINT threadx_priority)
 {
     if (threadx_priority > OS_TASK_PRIORITY_MAX)
@@ -301,8 +301,8 @@ RetValue_t os_initialize_mem_pool(void)
     mem_pool->mem = OS_MEM_POOL_MEM;
 
     if (os_mem_pool_create_static("OS MemPool 1", &mem_pool->stack, sizeof(mem_pool->stack),
-                                  mem_pool->mem, UPES_THREADX_OS_MEM_POOL_BKSZ_1,
-                                  UPES_THREADX_OS_MEM_POOL_BKCT_1) == NULL)
+                                  mem_pool->mem, SAM_TX_OS_MEM_POOL_BKSZ_1,
+                                  SAM_TX_OS_MEM_POOL_BKCT_1) == NULL)
     {
         return RET_VALUE_OS_MEM_POOL_ERR;
     }
@@ -315,8 +315,8 @@ RetValue_t os_initialize_mem_pool(void)
     mem_pool->mem = OS_MEM_POOL_MEM + OS_MEM_POOL_MEM1_SIZE;
 
     if (os_mem_pool_create_static("OS MemPool 2", &mem_pool->stack, sizeof(mem_pool->stack),
-                                  mem_pool->mem, UPES_THREADX_OS_MEM_POOL_BKSZ_2,
-                                  UPES_THREADX_OS_MEM_POOL_BKCT_2) == NULL)
+                                  mem_pool->mem, SAM_TX_OS_MEM_POOL_BKSZ_2,
+                                  SAM_TX_OS_MEM_POOL_BKCT_2) == NULL)
     {
         return RET_VALUE_OS_MEM_POOL_ERR;
     }
@@ -329,8 +329,8 @@ RetValue_t os_initialize_mem_pool(void)
     mem_pool->mem = OS_MEM_POOL_MEM + OS_MEM_POOL_MEM1_SIZE + OS_MEM_POOL_MEM2_SIZE;
 
     if (os_mem_pool_create_static("OS MemPool 3", &mem_pool->stack, sizeof(mem_pool->stack),
-                                  mem_pool->mem, UPES_THREADX_OS_MEM_POOL_BKSZ_3,
-                                  UPES_THREADX_OS_MEM_POOL_BKCT_3) == NULL)
+                                  mem_pool->mem, SAM_TX_OS_MEM_POOL_BKSZ_3,
+                                  SAM_TX_OS_MEM_POOL_BKCT_3) == NULL)
     {
         return RET_VALUE_OS_MEM_POOL_ERR;
     }
@@ -344,8 +344,8 @@ RetValue_t os_initialize_mem_pool(void)
         OS_MEM_POOL_MEM + OS_MEM_POOL_MEM1_SIZE + OS_MEM_POOL_MEM2_SIZE + OS_MEM_POOL_MEM3_SIZE;
 
     if (os_mem_pool_create_static("OS MemPool 4", &mem_pool->stack, sizeof(mem_pool->stack),
-                                  mem_pool->mem, UPES_THREADX_OS_MEM_POOL_BKSZ_4,
-                                  UPES_THREADX_OS_MEM_POOL_BKCT_4) == NULL)
+                                  mem_pool->mem, SAM_TX_OS_MEM_POOL_BKSZ_4,
+                                  SAM_TX_OS_MEM_POOL_BKCT_4) == NULL)
     {
         return RET_VALUE_OS_MEM_POOL_ERR;
     }
@@ -458,23 +458,19 @@ void* os_malloc(uint32_t size)
 {
     void* mem = NULL;
 
-    if ((_threadx->mem_pool[OS_MEM_POOL_1].mem != NULL) &&
-        (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_1))
+    if ((_threadx->mem_pool[OS_MEM_POOL_1].mem != NULL) && (size <= SAM_TX_OS_MEM_POOL_BKSZ_1))
     {
         mem = os_mem_pool_alloc(&_threadx->mem_pool[OS_MEM_POOL_1].stack, size);
     }
-    else if ((_threadx->mem_pool[OS_MEM_POOL_2].mem != NULL) &&
-             (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_2))
+    else if ((_threadx->mem_pool[OS_MEM_POOL_2].mem != NULL) && (size <= SAM_TX_OS_MEM_POOL_BKSZ_2))
     {
         mem = os_mem_pool_alloc(&_threadx->mem_pool[OS_MEM_POOL_2].stack, size);
     }
-    else if ((_threadx->mem_pool[OS_MEM_POOL_3].mem != NULL) &&
-             (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_3))
+    else if ((_threadx->mem_pool[OS_MEM_POOL_3].mem != NULL) && (size <= SAM_TX_OS_MEM_POOL_BKSZ_3))
     {
         mem = os_mem_pool_alloc(&_threadx->mem_pool[OS_MEM_POOL_3].stack, size);
     }
-    else if ((_threadx->mem_pool[OS_MEM_POOL_4].mem != NULL) &&
-             (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_4))
+    else if ((_threadx->mem_pool[OS_MEM_POOL_4].mem != NULL) && (size <= SAM_TX_OS_MEM_POOL_BKSZ_4))
     {
         mem = os_mem_pool_alloc(&_threadx->mem_pool[OS_MEM_POOL_4].stack, size);
     }
@@ -490,23 +486,22 @@ void os_free(void* mem, uint32_t size)
 {
     if (mem != NULL)
     {
-        if ((_threadx->mem_pool[OS_MEM_POOL_1].mem != NULL) &&
-            (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_1))
+        if ((_threadx->mem_pool[OS_MEM_POOL_1].mem != NULL) && (size <= SAM_TX_OS_MEM_POOL_BKSZ_1))
         {
             os_mem_pool_free(&_threadx->mem_pool[OS_MEM_POOL_1].stack, mem);
         }
         else if ((_threadx->mem_pool[OS_MEM_POOL_2].mem != NULL) &&
-                 (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_2))
+                 (size <= SAM_TX_OS_MEM_POOL_BKSZ_2))
         {
             os_mem_pool_free(&_threadx->mem_pool[OS_MEM_POOL_2].stack, mem);
         }
         else if ((_threadx->mem_pool[OS_MEM_POOL_3].mem != NULL) &&
-                 (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_3))
+                 (size <= SAM_TX_OS_MEM_POOL_BKSZ_3))
         {
             os_mem_pool_free(&_threadx->mem_pool[OS_MEM_POOL_3].stack, mem);
         }
         else if ((_threadx->mem_pool[OS_MEM_POOL_4].mem != NULL) &&
-                 (size <= UPES_THREADX_OS_MEM_POOL_BKSZ_4))
+                 (size <= SAM_TX_OS_MEM_POOL_BKSZ_4))
         {
             os_mem_pool_free(&_threadx->mem_pool[OS_MEM_POOL_4].stack, mem);
         }

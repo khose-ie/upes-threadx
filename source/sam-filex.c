@@ -1,41 +1,41 @@
 
 #include <fx_api.h>
+#include <sam-filex.h>
+#include <sam-media.h>
 #include <tx_byte_pool.h>
-#include <upes-filex.h>
-#include <upes-media.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
 
-#ifndef UPES_FILEX_MEDIA_COUNT
+#ifndef SAM_FX_MEDIA_COUNT
 #define MEDIA_COUNT (1)
-#else // UPES_FILEX_MEDIA_COUNT
-#define MEDIA_COUNT (UPES_FILEX_MEDIA_COUNT)
-#endif // UPES_FILEX_MEDIA_COUNT
+#else // SAM_FX_MEDIA_COUNT
+#define MEDIA_COUNT (SAM_FX_MEDIA_COUNT)
+#endif // SAM_FX_MEDIA_COUNT
 
-#ifndef UPES_FILEX_MEDIA_WORK_SIZE
-#define MEDIA_WORK_SIZE (4096)
-#else // UPES_FILEX_MEDIA_WORK_SIZE
-#define MEDIA_WORK_SIZE align32down(UPES_FILEX_MEDIA_WORK_SIZE)
-#endif // UPES_FILEX_MEDIA_WORK_SIZE
+#ifndef SAM_FX_MEDIA_WORK_SIZE
+#define MEDIA_WORK_SIZE (4096) 
+#else // SAM_FX_MEDIA_WORK_SIZE
+#define MEDIA_WORK_SIZE align32down(SAM_FX_MEDIA_WORK_SIZE)
+#endif // SAM_FX_MEDIA_WORK_SIZE
 
-#ifndef UPES_FILEX_MAX_OPEN_ENTITIES
+#ifndef SAM_FX_MAX_OPEN_ENTITIES
 #define MAX_OPEN_ENTITIES (8)
-#else // UPES_FILEX_MAX_OPEN_ENTITIES
-#define MAX_OPEN_ENTITIES (UPES_FILEX_MAX_OPEN_ENTITIES)
-#endif // UPES_FILEX_MAX_OPEN_ENTITIES
+#else // SAM_FX_MAX_OPEN_ENTITIES
+#define MAX_OPEN_ENTITIES (SAM_FX_MAX_OPEN_ENTITIES)
+#endif // SAM_FX_MAX_OPEN_ENTITIES
 
 /// @brief FS stack memory configuration
 /// @details This section defines the memory configuration for the FS stack, including whether
 ///          external memory is used and the corresponding memory pool variable.
-#ifndef UPES_FILEX_STACK_EX_MEM
+#ifndef SAM_FX_STACK_EX_MEM
 #define EXT1            static
 #define FILEX_STACK_MEM _stack_mem
-#else // UPES_FILEX_STACK_EX_MEM
+#else // SAM_FX_STACK_EX_MEM
 #define EXT1            extern
-#define FILEX_STACK_MEM (UPES_FILEX_STACK_EX_MEM)
-#endif // UPES_FILEX_STACK_EX_MEM
+#define FILEX_STACK_MEM (SAM_FX_STACK_EX_MEM)
+#endif // SAM_FX_STACK_EX_MEM
 
 /// @brief Size of memory header for ThreadX block pool allocations
 /// @details This constant defines the size of the memory header
@@ -62,11 +62,11 @@ extern "C" {
 /// @brief FS stack memory size configuration
 /// @details This section defines the size of the FS stack memory, taking into account whether
 ///          external memory is used and the corresponding memory size macro.
-#ifndef UPES_FILEX_STACK_EX_MEM_SIZE
+#ifndef SAM_FX_STACK_EX_MEM_SIZE
 #define FILEX_STACK_MEM_SIZE (FILEX_STACK_MEM_REQUIRED_SIZE)
-#else // UPES_FILEX_STACK_EX_MEM_SIZE
-#define FILEX_STACK_MEM_SIZE align32down(UPES_FILEX_STACK_EX_MEM_SIZE)
-#endif // UPES_FILEX_STACK_EX_MEM_SIZE
+#else // SAM_FX_STACK_EX_MEM_SIZE
+#define FILEX_STACK_MEM_SIZE align32down(SAM_FX_STACK_EX_MEM_SIZE)
+#endif // SAM_FX_STACK_EX_MEM_SIZE
 
 /// @brief Media information structure
 /// @details This structure holds the FX_MEDIA and associated mutex for thread-safe operations.
