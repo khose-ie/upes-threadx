@@ -8,6 +8,11 @@
 extern "C" {
 #endif // __cplusplus
 
+/* Forward declaration for FileX internal partition helper (not exposed in fx_api.h).
+    Declared here to avoid implicit function declaration errors when calling it. */
+UINT _fx_partition_offset_calculate(void* partition_sector, UINT partition, ULONG* partition_start,
+                                    ULONG* partition_size);
+
 #ifndef SAM_FX_MEDIA_COUNT
 #define MEDIA_COUNT (1)
 #else // SAM_FX_MEDIA_COUNT
@@ -15,7 +20,7 @@ extern "C" {
 #endif // SAM_FX_MEDIA_COUNT
 
 #ifndef SAM_FX_MEDIA_WORK_SIZE
-#define MEDIA_WORK_SIZE (4096) 
+#define MEDIA_WORK_SIZE (4096)
 #else // SAM_FX_MEDIA_WORK_SIZE
 #define MEDIA_WORK_SIZE align32down(SAM_FX_MEDIA_WORK_SIZE)
 #endif // SAM_FX_MEDIA_WORK_SIZE
@@ -347,6 +352,12 @@ static RetValue_t check_fs_feasibility(const mediaState_t* state, const mediaDis
 
     switch (state->kind)
     {
+    case MEDIA_FORMAT_AUTO:
+    {
+        value = RET_VALUE_PARAM_ERR;
+        break;
+    }
+
     case MEDIA_FORMAT_FAT12:
     {
         if (cluster_count > 4084)
@@ -729,9 +740,9 @@ RetValue_t media_entity_state(mediaHandle_t media, const char* path, mediaEntity
     }
 
     if (fx_directory_information_get(
-            &xmedia->media, (CHAR*)path, &state->attributes, &state->size, &state->time_stamp.year,
-            &state->time_stamp.month, &state->time_stamp.day, &state->time_stamp.hour,
-            &state->time_stamp.minute, &state->time_stamp.second) != FX_SUCCESS)
+            &xmedia->media, (CHAR*)path, (UINT*)&state->attributes, (ULONG*)&state->size, (UINT*)&state->time_stamp.year,
+            (UINT*)&state->time_stamp.month, (UINT*)&state->time_stamp.day, (UINT*)&state->time_stamp.hour,
+            (UINT*)&state->time_stamp.minute, (UINT*)&state->time_stamp.second) != FX_SUCCESS)
     {
         mutex_unlock(&xmedia->mutex);
         return RET_VALUE_LOW_LEVEL_FAILURE;
@@ -953,7 +964,9 @@ RetValue_t media_file_sync(mediaFileHandle_t file)
 {
     FX_FILE* fx_file = (FX_FILE*)file;
 
-    if (fx_file_flush(fx_file) != FX_SUCCESS)
+    /* FileX does not expose a file-level flush in the public API; flush the
+       underlying media instead. This ensures data is written to the device. */
+    if (fx_media_flush(fx_file->fx_file_media_ptr) != FX_SUCCESS)
     {
         return RET_VALUE_LOW_LEVEL_FAILURE;
     }
@@ -1030,11 +1043,11 @@ RetValue_t media_dir_next_item_state(mediaDirHandle_t dir, mediaEntityState_t* s
             return RET_VALUE_LOW_LEVEL_FAILURE;
         }
 
-        if (fx_directory_first_full_entry_find(&fx_dir->media->media, name, &state->attributes,
-                                               &state->size, &state->time_stamp.year,
-                                               &state->time_stamp.month, &state->time_stamp.day,
-                                               &state->time_stamp.hour, &state->time_stamp.minute,
-                                               &state->time_stamp.second) != FX_SUCCESS)
+        if (fx_directory_first_full_entry_find(
+                &fx_dir->media->media, name, (UINT*)&state->attributes, (ULONG*)&state->size,
+                (UINT*)&state->time_stamp.year, (UINT*)&state->time_stamp.month,
+                (UINT*)&state->time_stamp.day, (UINT*)&state->time_stamp.hour,
+                (UINT*)&state->time_stamp.minute, (UINT*)&state->time_stamp.second) != FX_SUCCESS)
         {
             mutex_unlock(&fx_dir->media->mutex);
             return RET_VALUE_LOW_LEVEL_FAILURE;
@@ -1066,9 +1079,9 @@ RetValue_t media_dir_next_item_state(mediaDirHandle_t dir, mediaEntityState_t* s
     }
 
     if (fx_directory_next_full_entry_find(
-            &fx_dir->media->media, name, &state->attributes, &state->size, &state->time_stamp.year,
-            &state->time_stamp.month, &state->time_stamp.day, &state->time_stamp.hour,
-            &state->time_stamp.minute, &state->time_stamp.second) != FX_SUCCESS)
+            &fx_dir->media->media, name, (UINT*)&state->attributes, (ULONG*)&state->size, (UINT*)&state->time_stamp.year,
+            (UINT*)&state->time_stamp.month, (UINT*)&state->time_stamp.day, (UINT*)&state->time_stamp.hour,
+            (UINT*)&state->time_stamp.minute, (UINT*)&state->time_stamp.second) != FX_SUCCESS)
     {
         mutex_unlock(&fx_dir->media->mutex);
         return RET_VALUE_LOW_LEVEL_FAILURE;
